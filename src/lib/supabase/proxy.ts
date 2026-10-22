@@ -6,7 +6,18 @@ const PUBLIC_PATHS = ["/login"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
-  const { url, key } = supabaseEnv();
+  let env: { url: string; key: string };
+  try {
+    env = supabaseEnv();
+  } catch {
+    // Mensagem clara em vez de "Internal Server Error" quando o deploy está sem as variáveis
+    return new NextResponse(
+      "Meu Financeiro: configuração incompleta. Defina NEXT_PUBLIC_SUPABASE_URL e " +
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY nas variáveis de ambiente da Vercel e faça um novo deploy.",
+      { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } },
+    );
+  }
+  const { url, key } = env;
 
   const supabase = createServerClient(url, key, {
     cookies: {
