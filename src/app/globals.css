@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: oklch(0.985 0.002 260);
+  --foreground: oklch(0.2 0.01 260);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --muted: oklch(0.965 0.003 260);
+  --muted-foreground: oklch(0.52 0.012 260);
+  --border: oklch(0.92 0.004 260);
+  --input: oklch(0.9 0.005 260);
+  --ring: oklch(0.55 0.15 265);
+  --primary: oklch(0.22 0.012 265);
+  --primary-foreground: oklch(0.98 0 0);
+  --accent: oklch(0.955 0.012 265);
+  --accent-foreground: oklch(0.3 0.06 265);
+  --brand: oklch(0.55 0.17 265);
+  --positive: oklch(0.56 0.14 158);
+  --positive-soft: oklch(0.95 0.04 158);
+  --negative: oklch(0.58 0.2 20);
+  --negative-soft: oklch(0.96 0.025 20);
+  --warning: oklch(0.7 0.15 70);
+  --warning-soft: oklch(0.96 0.05 85);
+  /* validados para daltonismo (scripts/validate_palette) */
+  --chart-income: #2563c9;
+  --chart-expense: #e0566a;
+  --chart-networth: #6d5bd0;
+  --chart-reserves: #0f8a7a;
+  --radius: 1rem;
+}
+
+.dark {
+  --background: oklch(0.155 0.006 265);
+  --foreground: oklch(0.95 0.004 260);
+  --card: oklch(0.195 0.007 265);
+  --card-foreground: var(--foreground);
+  --muted: oklch(0.24 0.008 265);
+  --muted-foreground: oklch(0.7 0.012 260);
+  --border: oklch(0.28 0.008 265);
+  --input: oklch(0.32 0.01 265);
+  --ring: oklch(0.7 0.13 265);
+  --primary: oklch(0.95 0.004 260);
+  --primary-foreground: oklch(0.18 0.008 265);
+  --accent: oklch(0.27 0.03 265);
+  --accent-foreground: oklch(0.88 0.05 265);
+  --brand: oklch(0.72 0.13 265);
+  --positive: oklch(0.76 0.14 158);
+  --positive-soft: oklch(0.3 0.05 158);
+  --negative: oklch(0.74 0.15 20);
+  --negative-soft: oklch(0.3 0.06 20);
+  --warning: oklch(0.82 0.13 80);
+  --warning-soft: oklch(0.32 0.05 80);
+  --chart-income: #4f86e8;
+  --chart-expense: #de5c6e;
+  --chart-networth: #8c7ee6;
+  --chart-reserves: #1fa38f;
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-brand: var(--brand);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-sm: calc(var(--radius) - 8px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    background: var(--background);
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    min-height: 100dvh;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
