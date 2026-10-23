@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { Account, Category, PaymentMethod } from "@/lib/types";
+import type { Account, Category, CreditCard, PaymentMethod, RecurringRule, RepeatValue } from "@/lib/types";
 import { EntryDialog } from "./entry-dialog";
 
 export type EntryKind = "income" | "expense" | "transfer";
@@ -21,6 +21,14 @@ export interface EntryDraft {
   fromAccountId?: string;
   toAccountId?: string;
   notes?: string | null;
+  /** origem do lançamento editado */
+  source?: "transaction" | "card";
+  cardId?: string;
+  installments?: number;
+  recurringRuleId?: string | null;
+  occurrenceDate?: string | null;
+  repeat?: RepeatValue;
+  repeatUntil?: string | null;
 }
 
 interface Ctx {
@@ -28,6 +36,8 @@ interface Ctx {
   openDraft: (draft: EntryDraft) => void;
   accounts: Account[];
   categories: Category[];
+  cards: CreditCard[];
+  rules: RecurringRule[];
 }
 
 const EntryContext = createContext<Ctx | null>(null);
@@ -41,10 +51,14 @@ export function useEntryDialog() {
 export function EntryProvider({
   accounts,
   categories,
+  cards,
+  rules,
   children,
 }: {
   accounts: Account[];
   categories: Category[];
+  cards: CreditCard[];
+  rules: RecurringRule[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -72,12 +86,15 @@ export function EntryProvider({
     return () => window.removeEventListener("keydown", onKey);
   }, [openNew]);
 
-  const value = useMemo(() => ({ openNew, openDraft, accounts, categories }), [openNew, openDraft, accounts, categories]);
+  const value = useMemo(
+    () => ({ openNew, openDraft, accounts, categories, cards, rules }),
+    [openNew, openDraft, accounts, categories, cards, rules],
+  );
 
   return (
     <EntryContext.Provider value={value}>
       {children}
-      <EntryDialog key={nonce} open={open} onOpenChange={setOpen} draft={draft} accounts={accounts} categories={categories} />
+      <EntryDialog key={nonce} open={open} onOpenChange={setOpen} draft={draft} accounts={accounts} categories={categories} cards={cards} />
     </EntryContext.Provider>
   );
 }

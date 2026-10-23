@@ -1,11 +1,12 @@
 import "server-only";
 import { cache } from "react";
 import { requireUser } from "@/lib/supabase/server";
-import { addDays, type ISODate } from "@/lib/finance/dates";
+import { addDays, monthKeyOf, monthRange, shiftMonth, type ISODate, type MonthKey } from "@/lib/finance/dates";
 import type { BalanceRow } from "@/lib/finance/overview";
 import {
-  mapAccount, mapAdjustment, mapCategory, mapGoal, mapMovement, mapTransaction, mapTransfer,
-  type Account, type Category, type Transaction, type Transfer,
+  mapAccount, mapAdjustment, mapBudget, mapCard, mapCardPurchase, mapCategory, mapGoal, mapInstallment, mapMovement,
+  mapRule, mapStatementPayment, mapStatementTotals, mapTransaction, mapTransfer,
+  type Account, type Category, type CreditCard, type StatementTotals, type Transaction, type Transfer,
 } from "@/lib/types";
 
 type Row = Record<string, unknown>;
@@ -84,12 +85,12 @@ export const getTransfersInRange = cache(async (from: ISODate, to: ISODate): Pro
   return rows.map(mapTransfer);
 });
 
-export async function getRecentTransactions(limit = 6) {
+export async function getRecentTransactions(limit = 6, today?: ISODate) {
   const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("transactions")
-    .select("*")
-    .neq("status", "cancelled")
+  let query = supabase.from("transactions").select("*").neq("status", "cancelled");
+  // previstas de recorrências futuras não são "últimas movimentações"
+  if (today) query = query.lte("date", today);
+  const { data, error } = await query
     .order("date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -151,10 +152,161 @@ export async function getRefundTotals(expenseIds: string[]) {
   return totals;
 }
 
+/* ================================ Fase 2 ================================ */
+
+/**
+ * Gera ocorrências previstas das recorrências (idempotente). Contas: até o fim
+ * do mês seguinte; cartão: até hoje. Chamado uma vez por requisição.
+ */
+export const ensureRecurring = cache(async (today: ISODate) => {
+  const { supabase } = await requireUser();
+  const until = monthRange(shiftMonth(monthKeyOf(today), 1)).to;
+  const { error } = await supabase.rpc("generate_recurring", { p_today: today, p_until: until });
+  if (error) console.error("[recorrências]", error.message);
+});
+
+export const getCards = cache(async (): Promise<CreditCard[]> => {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.from("credit_cards").select("*").order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapCard);
+});
+
+/** Dívida de cada cartão em uma data (parcelas lançadas − pagamentos). */
+export const getCardBalances = cache(async (asOf: ISODate): Promise<Map<string, number>> => {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.rpc("card_balances", { p_as_of: asOf });
+  if (error) throw new Error(error.message);
+  return new Map(((data ?? []) as Row[]).map((r) => [String(r.card_id), Number(r.used_cents)]));
+});
+
+export async function getTotalCardDebt(asOf: ISODate) {
+  let total = 0;
+  for (const v of (await getCardBalances(asOf)).values()) total += v;
+  return total;
+}
+
+export const getStatementTotals = cache(async (): Promise<StatementTotals[]> => {
+  const { supabase } = await requireUser();
+  const rows = await fetchAll((a, b) =>
+    supabase.from("credit_card_statement_totals").select("*").order("month").range(a, b),
+  );
+  return rows.map(mapStatementTotals);
+});
+
+const INSTALLMENT_SELECT = "*, credit_card_purchases(description, kind, category_id, purchase_date, total_cents, installments)";
+
+/** Parcelas com competência no intervalo (para resumos por competência). */
+export const getInstallmentsInRange = cache(async (from: ISODate, to: ISODate) => {
+  const { supabase } = await requireUser();
+  const rows = await fetchAll((a, b) =>
+    supabase
+      .from("credit_card_installments")
+      .select(INSTALLMENT_SELECT)
+      .gte("competence_date", from)
+      .lte("competence_date", to)
+      .order("competence_date")
+      .range(a, b),
+  );
+  return rows.map(mapInstallment);
+});
+
+export async function getStatementInstallments(statementId: string) {
+  const { supabase } = await requireUser();
+  const rows = await fetchAll((a, b) =>
+    supabase.from("credit_card_installments").select(INSTALLMENT_SELECT).eq("statement_id", statementId).order("competence_date").range(a, b),
+  );
+  return rows.map(mapInstallment);
+}
+
+const PAYMENT_SELECT = "*, credit_card_statements(card_id)";
+
+/** Pagamentos de fatura no intervalo (saídas de caixa). */
+export const getStatementPaymentsInRange = cache(async (from: ISODate, to: ISODate) => {
+  const { supabase } = await requireUser();
+  const rows = await fetchAll((a, b) =>
+    supabase.from("statement_payments").select(PAYMENT_SELECT).gte("date", from).lte("date", to).order("date", { ascending: false }).range(a, b),
+  );
+  return rows.map(mapStatementPayment);
+});
+
+export async function getStatementPayments(statementId: string) {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.from("statement_payments").select(PAYMENT_SELECT).eq("statement_id", statementId).order("date");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapStatementPayment);
+}
+
+/** Compras/estornos/ajustes de cartão com data de compra no intervalo. */
+export const getCardPurchasesInRange = cache(async (from: ISODate, to: ISODate) => {
+  const { supabase } = await requireUser();
+  const rows = await fetchAll((a, b) =>
+    supabase.from("credit_card_purchases").select("*").gte("purchase_date", from).lte("purchase_date", to)
+      .order("purchase_date", { ascending: false }).order("created_at", { ascending: false }).range(a, b),
+  );
+  return rows.map(mapCardPurchase);
+});
+
+export async function getCardPurchasesByIds(ids: string[]) {
+  if (!ids.length) return [];
+  const { supabase } = await requireUser();
+  const out = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase.from("credit_card_purchases").select("*").in("id", ids.slice(i, i + 200));
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []).map(mapCardPurchase));
+  }
+  return out;
+}
+
+/** Total já estornado por compra de cartão. */
+export async function getCardRefundTotals(purchaseIds: string[]) {
+  const totals: Record<string, number> = {};
+  if (!purchaseIds.length) return totals;
+  const { supabase } = await requireUser();
+  for (let i = 0; i < purchaseIds.length; i += 200) {
+    const { data, error } = await supabase
+      .from("credit_card_purchases").select("refund_of_id, total_cents").eq("kind", "refund").in("refund_of_id", purchaseIds.slice(i, i + 200));
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) totals[r.refund_of_id] = (totals[r.refund_of_id] ?? 0) + Number(r.total_cents);
+  }
+  return totals;
+}
+
+export const getRecurringRules = cache(async () => {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.from("recurring_rules").select("*").order("start_date");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapRule);
+});
+
+/** Próxima ocorrência prevista de cada recorrência (a partir de hoje). */
+export async function getNextOccurrences(today: ISODate) {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("transactions").select("recurring_rule_id, occurrence_date").not("recurring_rule_id", "is", null)
+    .eq("status", "pending").gte("occurrence_date", today).order("occurrence_date");
+  if (error) throw new Error(error.message);
+  const next = new Map<string, string>();
+  for (const r of data ?? []) if (!next.has(r.recurring_rule_id)) next.set(r.recurring_rule_id, r.occurrence_date);
+  return next;
+}
+
+export const getBudgets = cache(async (month: MonthKey) => {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.from("budgets").select("*").eq("month", `${month}-01`);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapBudget);
+});
+
 /** Todos os dados do usuário (exportação/backup). */
 export async function getEverything() {
   const { supabase } = await requireUser();
-  const tables = ["accounts", "categories", "transactions", "transfers", "account_adjustments", "savings_goals", "savings_movements"] as const;
+  const tables = [
+    "accounts", "categories", "transactions", "transfers", "account_adjustments", "savings_goals", "savings_movements",
+    "credit_cards", "credit_card_statements", "recurring_rules", "credit_card_purchases", "credit_card_installments",
+    "statement_payments", "budgets",
+  ] as const;
   const out: Record<string, Row[]> = {};
   for (const t of tables) {
     out[t] = await fetchAll((a, b) => supabase.from(t).select("*").order("created_at").range(a, b));

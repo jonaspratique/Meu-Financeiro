@@ -24,15 +24,22 @@ const SUPABASE_AUTH_STUB = `
 export const USER_A = "11111111-1111-1111-1111-111111111111";
 export const USER_B = "22222222-2222-2222-2222-222222222222";
 
-export async function createDb() {
+export const MIGRATIONS_DIR = join(__dirname, "..", "..", "supabase", "migrations");
+export const migrationFiles = () => readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort();
+
+/** Cria o banco aplicando as migrações (todas, ou só as `upTo` primeiras). */
+export async function createDb(opts: { upTo?: number } = {}) {
   const db = new PGlite();
   await db.exec(SUPABASE_AUTH_STUB);
-  const dir = join(__dirname, "..", "..", "supabase", "migrations");
-  for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
-    await db.exec(readFileSync(join(dir, file), "utf8"));
+  for (const file of migrationFiles().slice(0, opts.upTo ?? Infinity)) {
+    await applyMigration(db, file);
   }
   await db.exec(`insert into auth.users (id, email) values ('${USER_A}', 'a@x.com'), ('${USER_B}', 'b@x.com');`);
   return db;
+}
+
+export async function applyMigration(db: PGlite, file: string) {
+  await db.exec(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
 }
 
 export type Db = Awaited<ReturnType<typeof createDb>>;

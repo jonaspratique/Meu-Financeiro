@@ -1,12 +1,12 @@
 import {
-  Banknote, Briefcase, Car, CircleEllipsis, GraduationCap, HeartPulse, Home, Landmark, Laptop, PartyPopper,
+  Banknote, Briefcase, Car, CreditCard, CircleEllipsis, GraduationCap, HeartPulse, Home, Landmark, Laptop, PartyPopper,
   PiggyBank, Plane, PlusCircle, Repeat, Rocket, RotateCcw, Shield, ShoppingBag, ShoppingCart, Smartphone,
   Sparkles, Tag, TrendingUp, Utensils, Wallet, Zap, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
-  banknote: Banknote, briefcase: Briefcase, car: Car, "circle-ellipsis": CircleEllipsis,
+  banknote: Banknote, briefcase: Briefcase, car: Car, "credit-card": CreditCard, "circle-ellipsis": CircleEllipsis,
   "graduation-cap": GraduationCap, "heart-pulse": HeartPulse, home: Home, landmark: Landmark, laptop: Laptop,
   "party-popper": PartyPopper, "piggy-bank": PiggyBank, plane: Plane, "plus-circle": PlusCircle, repeat: Repeat,
   rocket: Rocket, "rotate-ccw": RotateCcw, shield: Shield, "shopping-bag": ShoppingBag, "shopping-cart": ShoppingCart,

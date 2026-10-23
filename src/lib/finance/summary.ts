@@ -11,6 +11,9 @@
  *  - Transferências internas NÃO passam por aqui (não são receita nem despesa).
  *  - Estornos (refund) abatem a despesa da categoria da despesa original.
  *  - Ajustes de conciliação alteram saldo, mas não são receita nem despesa.
+ *  - Cartão: as PARCELAS são despesa por competência (only: "competencia");
+ *    o PAGAMENTO DA FATURA é a saída de caixa (only: "caixa"), na categoria
+ *    especial CARD_PAYMENT_CATEGORY. Assim nada é contado duas vezes.
  */
 import { inRange, type DateRange, type ISODate, type MonthKey, monthRange } from "./dates";
 
@@ -25,6 +28,37 @@ export interface Entry {
   status: EntryStatus;
   paidAt: ISODate | null;
   categoryId: string | null;
+  /** Restringe o lançamento a um único regime (usado pelo cartão). */
+  only?: Regime;
+}
+
+/** Categoria virtual para pagamentos de fatura na visão de caixa. */
+export const CARD_PAYMENT_CATEGORY = "__fatura_cartao__";
+
+/** Parcela do cartão → entrada de competência (valor com sinal: + cobrança, − crédito). */
+export function installmentEntry(i: { amountCents: number; competenceDate: ISODate; categoryId: string }): Entry {
+  return {
+    type: i.amountCents > 0 ? "expense" : "refund",
+    amountCents: Math.abs(i.amountCents),
+    date: i.competenceDate,
+    status: "paid",
+    paidAt: null,
+    categoryId: i.categoryId,
+    only: "competencia",
+  };
+}
+
+/** Pagamento de fatura → saída de caixa. */
+export function statementPaymentEntry(p: { amountCents: number; date: ISODate }): Entry {
+  return {
+    type: "expense",
+    amountCents: p.amountCents,
+    date: p.date,
+    status: "paid",
+    paidAt: p.date,
+    categoryId: CARD_PAYMENT_CATEGORY,
+    only: "caixa",
+  };
 }
 
 export interface PeriodSummary {
@@ -48,6 +82,7 @@ export function isRegime(v: unknown): v is Regime {
 /** O lançamento conta no período/regime? */
 export function countsIn(entry: Entry, range: DateRange, regime: Regime): boolean {
   if (entry.status === "cancelled") return false;
+  if (entry.only && entry.only !== regime) return false;
   if (regime === "caixa") return entry.status === "paid" && inRange(entry.paidAt, range);
   return inRange(entry.date, range);
 }

@@ -35,12 +35,15 @@ Os 10 critérios foram validados por um teste automatizado de ponta a ponta (`te
 - Exportação JSON (backup completo) e CSV, mais um script de restauração testado.
 - Modo claro/escuro, layout responsivo com navegação inferior no celular e atalho **N** para novo lançamento.
 
-**Fases seguintes:**
+## Fase 2 — Controle avançado (concluída)
 
-- **Fase 2:** cartões de crédito, parcelamentos, recorrências, orçamentos.
-- **Fase 3:** relatórios avançados, insights, lançamento por linguagem natural, importação CSV.
+- **Cartões de crédito**: limite, fechamento e vencimento; compras à vista ou parceladas (até 72x) com prévia das parcelas; faturas navegáveis mês a mês; pagamento total ou parcial; estornos; tarifas, juros e créditos.
+- **Recorrências**: qualquer receita ou despesa pode repetir (semanal a anual, com data final opcional), inclusive assinaturas no cartão. Editar só esta, esta e as próximas, ou encerrar.
+- **Orçamentos** mensais por categoria, com avisos em 80% e 100% e cópia para o mês seguinte.
+- **Vencimentos** em 7, 15 e 30 dias, incluindo faturas de cartão.
+- Dashboard e relatórios passam a considerar o cartão sem dupla contagem; o patrimônio desconta a dívida dos cartões.
 
-As regras de cartão já estão definidas em [`docs/regras-financeiras.md`](docs/regras-financeiras.md).
+**Fase seguinte — Fase 3:** relatórios avançados, insights, lançamento por linguagem natural, importação CSV.
 
 ---
 
@@ -49,7 +52,7 @@ As regras de cartão já estão definidas em [`docs/regras-financeiras.md`](docs
 ### 1. Criar o projeto no Supabase
 
 1. Crie um projeto em [supabase.com](https://supabase.com). Para os dados ficarem perto de você, escolha a região de São Paulo.
-2. **Aplique a migração.** Abra o **SQL Editor**, cole o conteúdo de `supabase/migrations/20261021000001_fase1_schema.sql` e execute.
+2. **Aplique as migrações, em ordem.** Abra o **SQL Editor** e execute cada arquivo de `supabase/migrations/` (Fase 1, depois Fase 2).
    - Alternativa com a CLI: `npx supabase link --project-ref <ref>` e depois `npx supabase db push`.
 3. **Desative cadastros públicos.** Em *Authentication*, nas configurações de cadastro, desligue a opção que permite novos usuários se cadastrarem. Este app não tem tela de cadastro, mas a API de cadastro do Supabase continua aberta se você não desligar.
 4. **Crie o seu usuário.** Em *Authentication → Users → Add user*, use e-mail e senha forte e marque a confirmação automática.
@@ -127,7 +130,7 @@ O documento completo, com exemplos, está em [`docs/regras-financeiras.md`](docs
 ## Testes
 
 ```bash
-npm test            # unitários + banco (57 testes)
+npm test            # unitários + banco (96 testes)
 npm run typecheck
 npm run build
 ```
@@ -137,6 +140,9 @@ npm run build
 | `tests/unit` (36) | Centavos e parsing de "1.234,56"; datas no fuso de São Paulo, meses e anos bissextos; competência × caixa; estornos; nenhum lançamento contado em dois meses; disponível, reservas e patrimônio sem dupla contagem; progresso e aporte sugerido. |
 | `tests/db` (21) | **As mesmas migrações de produção** num Postgres embarcado (PGlite): saldos, pendentes, data de pagamento, saldo inicial, edição e exclusão, transferências, constraints, estornos, conciliação, regras de reserva e **isolamento entre usuários via RLS**. |
 | `tests/e2e` (14 etapas) | Os 10 critérios de entrega no navegador, mais editar, duplicar, estornar, excluir, regime de caixa, exportação e uso no celular. |
+| `tests/unit/fase2` (13) | Faturas (fechamento/vencimento, virada de ano, dia 31), divisão de parcelas, situação da fatura, cartão em competência × caixa, orçamentos. |
+| `tests/db/fase2` (26) | **Atualizar Fase 1 → Fase 2 não altera saldos nem dados**; parcelas e faturas; estornos; pagamento parcial; recorrências (idempotência, exclusão não volta, encerrar, "esta e as próximas"); orçamentos; isolamento por usuário. |
+| `tests/e2e/fase2.mjs` (12 etapas) | Cartão, compra 6x, fatura, pagamento parcial, estorno, recorrência e edição da série, orçamento com aviso de 80%, celular sem rolagem lateral. |
 
 O teste de ponta a ponta precisa de um usuário **sem dados**, num projeto Supabase **de testes, nunca o de produção**:
 

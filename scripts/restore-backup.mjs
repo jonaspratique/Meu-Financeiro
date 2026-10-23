@@ -49,6 +49,8 @@ async function insert(table, rows) {
 const txns = data.transactions ?? [];
 await insert("accounts", data.accounts ?? []);
 await insert("categories", data.categories ?? []);
+await insert("credit_cards", data.credit_cards ?? []);
+await insert("recurring_rules", data.recurring_rules ?? []);
 await insert("transactions", txns.filter((t) => t.type !== "refund"));
 await insert("transactions", txns.filter((t) => t.type === "refund"));
 await insert("transfers", data.transfers ?? []);
@@ -58,4 +60,12 @@ const moves = [...(data.savings_movements ?? [])].sort((a, b) =>
   a.date === b.date ? (a.kind === b.kind ? 0 : a.kind === "deposit" ? -1 : 1) : a.date < b.date ? -1 : 1,
 );
 await insert("savings_movements", moves);
+// Fase 2: faturas antes das parcelas; compras antes dos estornos; pagamentos por último
+const purchases = data.credit_card_purchases ?? [];
+await insert("credit_card_statements", data.credit_card_statements ?? []);
+await insert("credit_card_purchases", purchases.filter((p) => p.kind !== "refund"));
+await insert("credit_card_purchases", purchases.filter((p) => p.kind === "refund"));
+await insert("credit_card_installments", data.credit_card_installments ?? []);
+await insert("statement_payments", data.statement_payments ?? []);
+await insert("budgets", data.budgets ?? []);
 console.log("Restauração concluída. Confira os saldos no app.");

@@ -21,5 +21,7 @@ export const NAV: NavItem[] = [
 export const SETTINGS: NavItem = { href: "/configuracoes", label: "Configurações", short: "Ajustes", icon: Settings };
 
 export function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  if (href === "/") return pathname === "/";
+  if (href === "/contas" && pathname.startsWith("/cartoes")) return true;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }

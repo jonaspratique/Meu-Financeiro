@@ -26,9 +26,9 @@ export function CategoryBreakdown({
     ...(rest > 0 ? [{ key: "outras", name: "Outras", color: "#94a3b8", icon: "circle-ellipsis", amount: rest }] : []),
   ];
   return (
-    <ul className="grid gap-3.5">
+    <ul className="grid grid-cols-1 gap-3.5">
       {rows.map((r) => (
-        <li key={r.key} className="grid gap-1.5">
+        <li key={r.key} className="grid grid-cols-1 gap-1.5">
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="flex min-w-0 items-center gap-2">
               <DynamicIcon name={r.icon} className="size-3.5 shrink-0 text-muted-foreground" />

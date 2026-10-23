@@ -4,11 +4,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { Input, NativeSelect } from "@/components/ui/input";
-import type { Account, Category } from "@/lib/types";
+import type { Account, Category, CreditCard } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Filtros da lista de movimentações, mantidos na URL (podem ser favoritados). */
-export function FilterBar({ accounts, categories }: { accounts: Account[]; categories: Category[] }) {
+export function FilterBar({ accounts, categories, cards = [] }: { accounts: Account[]; categories: Category[]; cards?: CreditCard[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -45,6 +45,7 @@ export function FilterBar({ accounts, categories }: { accounts: Account[]; categ
           <option value="receita">Receitas</option>
           <option value="transferencia">Transferências</option>
           <option value="estorno">Estornos</option>
+          {cards.length > 0 && <option value="cartao">Cartão de crédito</option>}
         </NativeSelect>
         <NativeSelect aria-label="Situação" value={sp.get("status") ?? ""} onChange={(e) => set("status", e.target.value)}>
           <option value="">Todas as situações</option>
@@ -54,11 +55,22 @@ export function FilterBar({ accounts, categories }: { accounts: Account[]; categ
         </NativeSelect>
         <NativeSelect aria-label="Conta" value={sp.get("conta") ?? ""} onChange={(e) => set("conta", e.target.value)}>
           <option value="">Todas as contas</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
+          <optgroup label="Contas">
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </optgroup>
+          {cards.length > 0 && (
+            <optgroup label="Cartões">
+              {cards.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </NativeSelect>
         <NativeSelect aria-label="Categoria" value={sp.get("cat") ?? ""} onChange={(e) => set("cat", e.target.value)}>
           <option value="">Todas as categorias</option>

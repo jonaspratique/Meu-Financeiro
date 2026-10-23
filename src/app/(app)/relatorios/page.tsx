@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { RegimeToggle } from "@/components/common/month-nav";
 import { Money } from "@/components/common/money";
 import { BarsChart } from "@/components/charts/charts";
-import { getTransactionsInRange } from "@/lib/data/queries";
+import { getEntriesInRange } from "@/lib/data/entries";
 import { formatMonthLong, formatMonthShort, lastMonths, monthKeyOf, monthRange, todayISO } from "@/lib/finance/dates";
 import { isRegime, monthlySeries, savingsRate } from "@/lib/finance/summary";
 
@@ -17,7 +17,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: S
   const regime = isRegime(sp.r) ? sp.r : "competencia";
   const today = todayISO();
   const months = lastMonths(monthKeyOf(today), 12);
-  const entries = await getTransactionsInRange(monthRange(months[0]).from, monthRange(months[11]).to);
+  const entries = await getEntriesInRange(monthRange(months[0]).from, monthRange(months[11]).to);
   const series = monthlySeries(entries, months, regime);
   const withData = series.filter((p) => p.income || p.expense);
   const avgExpense = withData.length ? Math.round(withData.reduce((a, p) => a + p.expense, 0) / withData.length) : 0;
@@ -28,7 +28,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: S
     <>
       <PageHeader
         title="Relatórios"
-        description="Histórico mensal dos últimos 12 meses."
+        description="Histórico mensal dos últimos 12 meses, incluindo cartões."
         actions={<RegimeToggle regime={regime} base="/relatorios" params={{}} />}
       />
       {withData.length === 0 ? (

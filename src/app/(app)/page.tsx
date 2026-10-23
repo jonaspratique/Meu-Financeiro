@@ -10,9 +10,13 @@ import { BarsChart, LinesChart } from "@/components/charts/charts";
 import { EntryList } from "@/components/entry/entry-list";
 import { NewEntryButton } from "@/components/entry/new-entry-button";
 import {
-  getAccounts, getBalances, getBalanceSeries, getCategories, getRecentTransactions, getSavings,
-  getTransactionsInRange, getUpcoming,
+  getAccounts, getBalances, getBalanceSeries, getCategories, getRecentTransactions, getSavings, getTotalCardDebt, getUpcoming,
 } from "@/lib/data/queries";
+import { getEntriesInRange } from "@/lib/data/entries";
+import { getBudgetUsage, getDueStatements } from "@/lib/data/planning";
+import { DueStatementsList } from "@/components/planning/due-statements";
+import { BudgetAlerts } from "@/components/planning/budget-alerts";
+import { CARD_PAYMENT_PSEUDO_CATEGORY } from "@/lib/types";
 import {
   formatMonthLong, formatMonthShort, lastMonths, monthKeyOf, monthRange, parseMonthParam, shiftMonth, todayISO,
 } from "@/lib/finance/dates";
@@ -39,16 +43,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
     return end < today ? end : today;
   });
 
-  const [accounts, categories, entries, balances, savings, upcoming, recent, series] = await Promise.all([
-    getAccounts(),
-    getCategories(),
-    getTransactionsInRange(monthRange(months[0]).from, range.to),
-    getBalances(asOf),
-    getSavings(),
-    getUpcoming(today, 30, 8),
-    getRecentTransactions(6),
-    getBalanceSeries(monthEnds),
-  ]);
+  const [accounts, categories, entries, balances, savings, upcoming, recent, series, debt, debts, dueStatements, budgetUsage] =
+    await Promise.all([
+      getAccounts(),
+      getCategories(),
+      getEntriesInRange(monthRange(months[0]).from, range.to),
+      getBalances(asOf),
+      getSavings(),
+      getUpcoming(today, 30, 8),
+      getRecentTransactions(6, today),
+      getBalanceSeries(monthEnds),
+      getTotalCardDebt(asOf),
+      Promise.all(monthEnds.map((d) => getTotalCardDebt(d))),
+      getDueStatements(today, 30),
+      getBudgetUsage(month),
+    ]);
 
   if (accounts.length === 0) {
     return (
@@ -72,14 +81,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
 
   const summary = summarize(entries, range, regime);
   const prev = summarize(entries, monthRange(shiftMonth(month, -1)), regime);
-  const overview = computeOverview(accounts, balances);
+  const overview = computeOverview(accounts, balances, debt);
   const flow = monthlySeries(entries, months, regime).map((p) => ({
     label: formatMonthShort(p.month),
     income: p.income,
     expense: p.expense,
   }));
   const wealth = series.map((s, i) => {
-    const o = computeOverview(accounts, s.rows);
+    const o = computeOverview(accounts, s.rows, debts[i]);
     return { label: formatMonthShort(months[i]), netWorth: o.netWorth, reserved: o.reserved };
   });
   const operationalCount = accounts.filter((a) => a.isOperational && !a.archived).length;
@@ -116,6 +125,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
         </div>
       )}
 
+      <BudgetAlerts usage={budgetUsage} categories={categories} month={month} />
+
       <section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Stat
           label="Saldo disponível"
@@ -142,7 +153,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
         />
         <Stat label="Resultado mensal" cents={summary.result} previous={prev.result} goodWhen="up" tone="auto" />
         <Stat label="Reservas financeiras" cents={overview.reserved} hint={<Link href="/reservas" className="hover:underline">ver metas</Link>} />
-        <Stat label="Patrimônio líquido" cents={overview.netWorth} hint="contas − dívidas" className="col-span-2 lg:col-span-1" />
+        <Stat
+          label="Patrimônio líquido"
+          cents={overview.netWorth}
+          hint={debt > 0 ? `contas − ${brl(debt)} em cartões` : "contas − dívidas"}
+          className="col-span-2 lg:col-span-1"
+        />
       </section>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5 [&>*]:min-w-0">
@@ -167,7 +183,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
           <CardHeader title="Gastos por categoria" description={formatMonthLong(month)} />
           <CardBody>
             {summary.expense > 0 ? (
-              <CategoryBreakdown byCategory={summary.expenseByCategory} categories={categories} />
+              <CategoryBreakdown byCategory={summary.expenseByCategory} categories={[...categories, CARD_PAYMENT_PSEUDO_CATEGORY]} />
             ) : (
               <EmptyState icon={<PieChart />} title="Nenhuma despesa neste mês" />
             )}
@@ -187,9 +203,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
             }
           />
           <div className="pb-2 pt-2">
+            {dueStatements.length > 0 && <DueStatementsList items={dueStatements.slice(0, 4)} />}
             {upcoming.length ? (
               <EntryList items={upcoming.map((t) => ({ kind: "transaction" as const, t }))} />
-            ) : (
+            ) : dueStatements.length ? null : (
               <EmptyState icon={<CalendarClock />} title="Nada pendente" description="Contas a pagar e a receber aparecem aqui." />
             )}
           </div>

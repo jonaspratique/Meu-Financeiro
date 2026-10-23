@@ -52,6 +52,25 @@ const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor inválida");
 
 export const PAYMENT_METHODS = ["pix", "debit", "cash", "boleto", "bank_transfer", "auto_debit", "other"] as const;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Conta (uuid) ou cartão ("card:uuid"). */
+const destination = z
+  .string()
+  .refine((v) => UUID_RE.test(v) || (v.startsWith("card:") && UUID_RE.test(v.slice(5))), "Selecione uma conta ou cartão");
+
+export const REPEAT_VALUES = ["none", "weekly-1", "weekly-2", "monthly-1", "monthly-2", "monthly-3", "monthly-6", "yearly-1"] as const;
+
+const recurrenceFields = {
+  repeat: z.enum(REPEAT_VALUES).optional().default("none"),
+  repeatUntil: isoDate.optional().or(z.literal("").transform(() => undefined)),
+  installments: z.coerce.number().int().min(1, "Mínimo 1 parcela").max(72, "Máximo 72 parcelas").optional().default(1),
+  /** edição de ocorrência recorrente: só esta ou esta e as próximas */
+  scope: z.enum(["one", "series"]).optional().default("one"),
+  source: z.enum(["transaction", "card"]).optional().default("transaction"),
+  recurringRuleId: z.string().uuid().optional().nullable(),
+  occurrenceDate: isoDate.optional().nullable(),
+};
+
 const entryBase = {
   id: z.string().uuid().optional(),
   description: z.string().trim().min(1, "Informe uma descrição").max(120, "Máximo de 120 caracteres"),
@@ -66,17 +85,28 @@ export const entrySchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("income"),
     ...entryBase,
+    ...recurrenceFields,
     accountId: id,
     categoryId: id,
     paymentMethod: z.enum(PAYMENT_METHODS),
   }),
-  z.object({
-    kind: z.literal("expense"),
-    ...entryBase,
-    accountId: id,
-    categoryId: id,
-    paymentMethod: z.enum(PAYMENT_METHODS),
-  }),
+  z
+    .object({
+      kind: z.literal("expense"),
+      ...entryBase,
+      ...recurrenceFields,
+      accountId: destination,
+      categoryId: id,
+      paymentMethod: z.enum(PAYMENT_METHODS),
+    })
+    .refine((v) => v.installments === 1 || v.accountId.startsWith("card:"), {
+      message: "Parcelamento só no cartão de crédito",
+      path: ["installments"],
+    })
+    .refine((v) => v.installments === 1 || v.repeat === "none", {
+      message: "Compra parcelada não pode repetir",
+      path: ["repeat"],
+    }),
   z
     .object({
       kind: z.literal("transfer"),
@@ -143,6 +173,56 @@ export const savingsMoveSchema = z.object({
   date: isoDate,
   notes: optionalText(500),
 });
+
+/* ------------------------------ Fase 2 ------------------------------ */
+const nonNegativeMoney = signedMoney.refine((v) => v >= 0, "O valor não pode ser negativo");
+const day = z.coerce.number().int().min(1, "Dia entre 1 e 31").max(31, "Dia entre 1 e 31");
+
+export const cardSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    name: z.string().trim().min(1, "Informe o nome").max(60),
+    limit: nonNegativeMoney,
+    closingDay: day,
+    dueDay: day,
+    color,
+    paymentAccountId: z.string().uuid().optional().or(z.literal("").transform(() => undefined)),
+  })
+  .refine((v) => v.closingDay !== v.dueDay, { message: "Vencimento e fechamento em dias diferentes", path: ["dueDay"] });
+
+export const paymentSchema = z.object({
+  statementId: id,
+  accountId: id,
+  amount: positiveMoney,
+  date: isoDate,
+});
+
+export const cardRefundSchema = z.object({
+  purchaseId: id,
+  amount: positiveMoney,
+  date: isoDate,
+});
+
+export const cardAdjustmentSchema = z.object({
+  cardId: id,
+  kind: z.enum(["fee", "credit"]),
+  description: z.string().trim().min(1, "Informe uma descrição").max(120),
+  amount: positiveMoney,
+  date: isoDate,
+  categoryId: id,
+});
+
+export const budgetSchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mês inválido"),
+  categoryId: id,
+  amount: positiveMoney,
+});
+
+export function parseRepeat(v: (typeof REPEAT_VALUES)[number] | undefined) {
+  if (!v || v === "none") return null;
+  const [frequency, interval] = v.split("-") as ["weekly" | "monthly" | "yearly", string];
+  return { frequency, interval: Number(interval) };
+}
 
 export type ActionResult<T = undefined> = { ok: true; data?: T; message?: string } | { ok: false; error: string };
 

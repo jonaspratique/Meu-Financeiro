@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
-import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowDown, ChevronDown, CreditCard as CardIcon, Loader2, Repeat } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -11,9 +11,12 @@ import { Segmented } from "@/components/ui/segmented";
 import { DynamicIcon } from "@/components/icon";
 import { saveEntry } from "@/lib/actions/entries";
 import { entrySchema, PAYMENT_METHODS } from "@/lib/validation";
-import { centsToInput } from "@/lib/finance/money";
-import { todayISO } from "@/lib/finance/dates";
-import { PAYMENT_METHOD_LABEL, type Account, type Category, type PaymentMethod } from "@/lib/types";
+import { centsToInput, formatBRL, parseBRL } from "@/lib/finance/money";
+import { formatDateBR, isISODate, todayISO } from "@/lib/finance/dates";
+import { previewInstallments } from "@/lib/finance/cards";
+import {
+  PAYMENT_METHOD_LABEL, REPEAT_OPTIONS, type Account, type Category, type CreditCard, type PaymentMethod, type RepeatValue,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { EntryDraft, EntryKind } from "./entry-provider";
 
@@ -24,25 +27,30 @@ interface FormValues {
   date: string;
   status: "paid" | "pending";
   paidAt: string;
-  accountId: string;
+  accountId: string; // uuid da conta ou "card:<uuid>"
   categoryId: string;
   paymentMethod: PaymentMethod;
   fromAccountId: string;
   toAccountId: string;
   notes: string;
+  installments: string;
+  repeat: RepeatValue;
+  repeatUntil: string;
+  scope: "one" | "series";
 }
 
 const LAST_CAT_KEY = (k: string) => `mf-last-category-${k}`;
-const readLast = (k: string) => {
+const LAST_DEST_KEY = "mf-last-destination";
+const read = (k: string) => {
   try {
-    return localStorage.getItem(LAST_CAT_KEY(k)) ?? "";
+    return localStorage.getItem(k) ?? "";
   } catch {
     return "";
   }
 };
-const writeLast = (k: string, v: string) => {
+const write = (k: string, v: string) => {
   try {
-    localStorage.setItem(LAST_CAT_KEY(k), v);
+    localStorage.setItem(k, v);
   } catch {}
 };
 
@@ -52,21 +60,39 @@ export function EntryDialog({
   draft,
   accounts,
   categories,
+  cards,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   draft: EntryDraft;
   accounts: Account[];
   categories: Category[];
+  cards: CreditCard[];
 }) {
   const [pending, startTransition] = useTransition();
-  const [showMore, setShowMore] = useState(Boolean(draft.notes) || (draft.paidAt != null && draft.paidAt !== draft.date));
   const isEdit = Boolean(draft.id);
+  const isCardEdit = isEdit && draft.source === "card";
+  const isRecurringOccurrence = isEdit && Boolean(draft.recurringRuleId);
+  const [showMore, setShowMore] = useState(
+    Boolean(draft.notes) || (draft.paidAt != null && draft.paidAt !== draft.date) || (!isEdit && !!draft.repeat && draft.repeat !== "none"),
+  );
+
   const activeAccounts = useMemo(
     () => accounts.filter((a) => !a.archived || a.id === draft.accountId || a.id === draft.fromAccountId || a.id === draft.toAccountId),
     [accounts, draft],
   );
+  const activeCards = useMemo(() => cards.filter((c) => !c.archived || c.id === draft.cardId), [cards, draft.cardId]);
   const defaultAccount = activeAccounts.find((a) => a.isDefault && !a.archived) ?? activeAccounts.find((a) => !a.archived);
+
+  // destino padrão: o último usado (conta ou cartão), senão a conta padrão
+  const initialDestination = (() => {
+    if (draft.cardId) return `card:${draft.cardId}`;
+    if (draft.accountId) return draft.accountId;
+    const last = typeof window !== "undefined" ? read(LAST_DEST_KEY) : "";
+    if (last.startsWith("card:") && activeCards.some((c) => `card:${c.id}` === last && !c.archived)) return draft.kind === "expense" ? last : defaultAccount?.id ?? "";
+    if (activeAccounts.some((a) => a.id === last && !a.archived)) return last;
+    return defaultAccount?.id ?? "";
+  })();
 
   const today = todayISO();
   const form = useForm<FormValues>({
@@ -77,72 +103,101 @@ export function EntryDialog({
       date: draft.date ?? today,
       status: draft.status ?? "paid",
       paidAt: draft.paidAt ?? "",
-      accountId: draft.accountId ?? defaultAccount?.id ?? "",
+      accountId: initialDestination,
       categoryId: draft.categoryId ?? "",
       paymentMethod: draft.paymentMethod ?? "pix",
       fromAccountId: draft.fromAccountId ?? defaultAccount?.id ?? "",
       toAccountId: draft.toAccountId ?? activeAccounts.find((a) => a.id !== defaultAccount?.id && !a.archived)?.id ?? "",
       notes: draft.notes ?? "",
+      installments: String(draft.installments ?? 1),
+      repeat: draft.repeat ?? "none",
+      repeatUntil: draft.repeatUntil ?? "",
+      scope: "one",
     },
   });
   const { register, setValue, handleSubmit, setError, formState, control } = form;
   const kind = useWatch({ control, name: "kind" });
   const status = useWatch({ control, name: "status" });
   const categoryId = useWatch({ control, name: "categoryId" });
+  const accountId = useWatch({ control, name: "accountId" });
+  const amount = useWatch({ control, name: "amount" });
   const date = useWatch({ control, name: "date" });
+  const installments = useWatch({ control, name: "installments" });
+  const repeat = useWatch({ control, name: "repeat" });
+  const scope = useWatch({ control, name: "scope" });
+
+  const isCard = kind === "expense" && accountId.startsWith("card:");
+  const card = isCard ? cards.find((c) => `card:${c.id}` === accountId) : undefined;
+  const showRepeat = kind !== "transfer" && (!isEdit || (isRecurringOccurrence && scope === "series"));
+
+  // receita não vai para cartão
+  useEffect(() => {
+    if (kind !== "expense" && accountId.startsWith("card:")) setValue("accountId", defaultAccount?.id ?? "");
+  }, [kind, accountId, defaultAccount?.id, setValue]);
 
   const kindCategories = useMemo(
-    () => categories.filter((c) => c.kind === kind && (!c.archived || c.id === draft.categoryId)),
+    () => categories.filter((c) => c.kind === (kind === "income" ? "income" : "expense") && (!c.archived || c.id === draft.categoryId)),
     [categories, kind, draft.categoryId],
   );
 
-  // categoria padrão: a última usada para o tipo, senão a primeira
   useEffect(() => {
     if (kind === "transfer") return;
     if (kindCategories.some((c) => c.id === categoryId)) return;
-    const last = readLast(kind);
+    const last = read(LAST_CAT_KEY(kind));
     const pick = kindCategories.find((c) => c.id === last) ?? kindCategories[0];
     setValue("categoryId", pick?.id ?? "");
   }, [kind, kindCategories, categoryId, setValue]);
 
+  // prévia das parcelas / fatura
+  const preview = useMemo(() => {
+    if (!card || !isISODate(date)) return null;
+    const cents = parseBRL(amount);
+    const n = Math.max(1, Math.min(72, Number(installments) || 1));
+    if (!cents || cents < n) return null;
+    try {
+      return previewInstallments(cents, n, date, card);
+    } catch {
+      return null;
+    }
+  }, [card, date, amount, installments]);
+
   const onSubmit = handleSubmit((values) => {
     const category = categories.find((c) => c.id === values.categoryId);
-    const description =
-      values.description.trim() || (values.kind === "transfer" ? "Transferência" : category?.name ?? "");
+    const description = values.description.trim() || (values.kind === "transfer" ? "Transferência" : category?.name ?? "");
+    const common = {
+      id: draft.id,
+      description,
+      amount: values.amount,
+      date: values.date,
+      status: values.status,
+      paidAt: values.status === "paid" ? values.paidAt || values.date : "",
+      notes: values.notes,
+    };
     const payload =
       values.kind === "transfer"
-        ? {
-            kind: "transfer" as const,
-            id: draft.id,
-            description,
-            amount: values.amount,
-            date: values.date,
-            status: values.status,
-            paidAt: values.status === "paid" ? values.paidAt || values.date : "",
-            notes: values.notes,
-            fromAccountId: values.fromAccountId,
-            toAccountId: values.toAccountId,
-          }
+        ? { kind: "transfer" as const, ...common, fromAccountId: values.fromAccountId, toAccountId: values.toAccountId }
         : {
             kind: values.kind,
-            id: draft.id,
-            description,
-            amount: values.amount,
-            date: values.date,
-            status: values.status,
-            paidAt: values.status === "paid" ? values.paidAt || values.date : "",
-            notes: values.notes,
+            ...common,
+            ...(values.accountId.startsWith("card:") ? { status: "paid" as const, paidAt: "" } : {}),
             accountId: values.accountId,
             categoryId: values.categoryId,
             paymentMethod: values.paymentMethod,
+            installments: values.accountId.startsWith("card:") ? Number(values.installments) || 1 : 1,
+            repeat: showRepeat ? values.repeat : ("none" as const),
+            repeatUntil: showRepeat ? values.repeatUntil : "",
+            scope: isRecurringOccurrence ? values.scope : ("one" as const),
+            source: draft.source ?? "transaction",
+            recurringRuleId: draft.recurringRuleId ?? null,
+            occurrenceDate: draft.occurrenceDate ?? null,
           };
 
-    // validação no cliente (o servidor valida de novo)
     const parsed = entrySchema.safeParse(payload);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         const field = String(issue.path[0] ?? "amount") as keyof FormValues;
         setError(field, { message: issue.message });
+        if (["repeat", "repeatUntil", "notes", "paidAt"].includes(field)) setShowMore(true);
       }
       return;
     }
@@ -153,7 +208,10 @@ export function EntryDialog({
         toast.error(res.error);
         return;
       }
-      if (values.kind !== "transfer") writeLast(values.kind, values.categoryId);
+      if (values.kind !== "transfer") {
+        write(LAST_CAT_KEY(values.kind), values.categoryId);
+        if (!isEdit) write(LAST_DEST_KEY, values.accountId);
+      }
       toast.success(res.message ?? "Salvo");
       onOpenChange(false);
     });
@@ -163,12 +221,21 @@ export function EntryDialog({
   const paidLabel = kind === "income" ? "Recebido" : kind === "transfer" ? "Efetivada" : "Pago";
   const pendingLabel = kind === "income" ? "A receber" : kind === "transfer" ? "Agendada" : "A pagar";
   const noAccounts = activeAccounts.filter((a) => !a.archived).length === 0;
+  const visibleCards = activeCards.filter((c) => !c.archived || c.id === draft.cardId);
+
+  const title = isEdit
+    ? isRecurringOccurrence
+      ? "Editar lançamento recorrente"
+      : isCardEdit
+        ? "Editar compra no cartão"
+        : "Editar lançamento"
+    : draft.amountCents
+      ? "Duplicar lançamento"
+      : "Novo lançamento";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        title={isEdit ? "Editar lançamento" : draft.id === undefined && draft.amountCents ? "Duplicar lançamento" : "Novo lançamento"}
-      >
+      <DialogContent title={title}>
         {noAccounts ? (
           <div className="grid gap-3 text-sm">
             <p className="text-muted-foreground">Cadastre sua primeira conta para começar a lançar.</p>
@@ -178,7 +245,7 @@ export function EntryDialog({
           </div>
         ) : (
           <form onSubmit={onSubmit} className="grid gap-4" noValidate>
-            {!(isEdit && draft.kind === "transfer") && (
+            {!isEdit && (
               <Segmented<EntryKind>
                 ariaLabel="Tipo de lançamento"
                 value={kind}
@@ -187,9 +254,39 @@ export function EntryDialog({
                 options={[
                   { value: "expense", label: "Despesa", className: "text-negative" },
                   { value: "income", label: "Receita", className: "text-positive" },
-                  ...(isEdit ? [] : [{ value: "transfer" as const, label: "Transferência", className: "text-brand" }]),
+                  { value: "transfer", label: "Transferência", className: "text-brand" },
                 ]}
               />
+            )}
+            {isEdit && !isCardEdit && draft.kind !== "transfer" && !isRecurringOccurrence && (
+              <Segmented<EntryKind>
+                ariaLabel="Tipo de lançamento"
+                value={kind}
+                onChange={(v) => setValue("kind", v)}
+                className="w-full"
+                options={[
+                  { value: "expense", label: "Despesa", className: "text-negative" },
+                  { value: "income", label: "Receita", className: "text-positive" },
+                ]}
+              />
+            )}
+            {isRecurringOccurrence && (
+              <div className="grid gap-1.5 rounded-xl bg-accent/60 p-3">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-accent-foreground">
+                  <Repeat className="size-3.5" /> Este lançamento se repete. Aplicar a alteração a:
+                </span>
+                <Segmented<"one" | "series">
+                  ariaLabel="Aplicar a"
+                  value={scope}
+                  onChange={(v) => setValue("scope", v)}
+                  size="sm"
+                  className="w-full"
+                  options={[
+                    { value: "one", label: "Só este" },
+                    { value: "series", label: "Este e os próximos" },
+                  ]}
+                />
+              </div>
             )}
 
             <div className="grid gap-1.5">
@@ -254,25 +351,69 @@ export function EntryDialog({
                   {err("categoryId") && <p className="text-xs text-negative">{err("categoryId")}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Conta" htmlFor="accountId" error={err("accountId")}>
+                  <Field label={kind === "expense" && visibleCards.length ? "Conta ou cartão" : "Conta"} htmlFor="accountId" error={err("accountId")}>
                     <NativeSelect id="accountId" {...register("accountId")}>
-                      {activeAccounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
+                      {!isCardEdit && (
+                        <optgroup label="Contas">
+                          {activeAccounts.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {kind === "expense" && visibleCards.length > 0 && (!isEdit || isCardEdit) && (
+                        <optgroup label="Cartões de crédito">
+                          {visibleCards.map((c) => (
+                            <option key={c.id} value={`card:${c.id}`}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </NativeSelect>
                   </Field>
-                  <Field label="Forma de pagamento" htmlFor="paymentMethod">
-                    <NativeSelect id="paymentMethod" {...register("paymentMethod")}>
-                      {PAYMENT_METHODS.map((m) => (
-                        <option key={m} value={m}>
-                          {PAYMENT_METHOD_LABEL[m]}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                  </Field>
+                  {isCard ? (
+                    <Field label="Parcelas" htmlFor="installments" error={err("installments")}>
+                      <NativeSelect id="installments" disabled={repeat !== "none" && showRepeat} {...register("installments")}>
+                        {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>
+                            {n === 1 ? "À vista (1x)" : `${n}x`}
+                          </option>
+                        ))}
+                        {[30, 36, 48, 60, 72].map((n) => (
+                          <option key={n} value={n}>{`${n}x`}</option>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                  ) : (
+                    <Field label="Forma de pagamento" htmlFor="paymentMethod">
+                      <NativeSelect id="paymentMethod" {...register("paymentMethod")}>
+                        {PAYMENT_METHODS.map((m) => (
+                          <option key={m} value={m}>
+                            {PAYMENT_METHOD_LABEL[m]}
+                          </option>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                  )}
                 </div>
+                {isCard && preview && (
+                  <p className="-mt-2 flex items-start gap-1.5 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                    <CardIcon className="mt-0.5 size-3.5 shrink-0" />
+                    <span>
+                      {preview.length > 1 ? (
+                        <>
+                          {preview.length}x de <strong className="text-foreground">{formatBRL(preview[preview.length - 1].amount)}</strong>
+                          {preview[0].amount !== preview[preview.length - 1].amount && <> (1ª de {formatBRL(preview[0].amount)})</>}
+                          {" · "}1ª na fatura que vence em {formatDateBR(preview[0].due)}, última em {formatDateBR(preview[preview.length - 1].due)}.
+                        </>
+                      ) : (
+                        <>Entra na fatura que vence em {formatDateBR(preview[0].due)}.</>
+                      )}
+                    </span>
+                  </p>
+                )}
               </>
             ) : (
               <div className="grid gap-2">
@@ -298,24 +439,34 @@ export function EntryDialog({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label={kind === "transfer" ? "Data" : "Data / vencimento"} htmlFor="date" error={err("date")}>
+            <div className={cn("grid gap-3", isCard ? "grid-cols-1" : "grid-cols-2")}>
+              <Field
+                label={isCard ? "Data da compra" : kind === "transfer" ? "Data" : "Data / vencimento"}
+                htmlFor="date"
+                error={err("date")}
+              >
                 <Input id="date" type="date" {...register("date")} />
               </Field>
-              <div className="grid gap-1.5">
-                <span className="text-sm font-medium">Situação</span>
-                <Segmented<"paid" | "pending">
-                  ariaLabel="Situação"
-                  value={status}
-                  onChange={(v) => setValue("status", v)}
-                  className="h-10 w-full items-center"
-                  options={[
-                    { value: "paid", label: paidLabel },
-                    { value: "pending", label: pendingLabel },
-                  ]}
-                />
-              </div>
+              {!isCard && (
+                <div className="grid gap-1.5">
+                  <span className="text-sm font-medium">Situação</span>
+                  <Segmented<"paid" | "pending">
+                    ariaLabel="Situação"
+                    value={status}
+                    onChange={(v) => setValue("status", v)}
+                    className="h-10 w-full items-center"
+                    options={[
+                      { value: "paid", label: paidLabel },
+                      { value: "pending", label: pendingLabel },
+                    ]}
+                  />
+                </div>
+              )}
             </div>
+
+            {showRepeat && isRecurringOccurrence && (
+              <RepeatFields register={register} repeat={repeat} isCard={isCard} errRepeat={err("repeat")} errUntil={err("repeatUntil")} />
+            )}
 
             <button
               type="button"
@@ -324,18 +475,26 @@ export function EntryDialog({
               aria-expanded={showMore}
             >
               <ChevronDown className={cn("size-3.5 transition", showMore && "rotate-180")} />
-              Mais detalhes
+              {showRepeat && !isRecurringOccurrence ? "Repetir, observações e mais" : "Mais detalhes"}
+              {showRepeat && !isRecurringOccurrence && repeat !== "none" && (
+                <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] text-accent-foreground">
+                  <Repeat className="size-3" /> {REPEAT_OPTIONS.find((o) => o.value === repeat)?.label}
+                </span>
+              )}
             </button>
             {showMore && (
               <div className="grid gap-3">
-                {status === "paid" && (
+                {showRepeat && !isRecurringOccurrence && (
+                  <RepeatFields register={register} repeat={repeat} isCard={isCard} errRepeat={err("repeat")} errUntil={err("repeatUntil")} />
+                )}
+                {status === "paid" && !isCard && (
                   <Field
                     label={kind === "income" ? "Recebido em" : "Pago em"}
                     htmlFor="paidAt"
                     error={err("paidAt")}
                     hint="Deixe vazio para usar a mesma data acima. Usado na visão de fluxo de caixa."
                   >
-                    <Input id="paidAt" type="date" placeholder={date} {...register("paidAt")} />
+                    <Input id="paidAt" type="date" {...register("paidAt")} />
                   </Field>
                 )}
                 <Field label="Observações" htmlFor="notes" error={err("notes")}>
@@ -352,5 +511,43 @@ export function EntryDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function RepeatFields({
+  register,
+  repeat,
+  isCard,
+  errRepeat,
+  errUntil,
+}: {
+  register: ReturnType<typeof useForm<FormValues>>["register"];
+  repeat: RepeatValue;
+  isCard: boolean;
+  errRepeat?: string;
+  errUntil?: string;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <Field
+        label="Repetir"
+        htmlFor="repeat"
+        error={errRepeat}
+        hint={repeat !== "none" ? (isCard ? "Cobrança lançada no cartão a cada vencimento." : "As próximas ficam previstas, sem marcar como pagas.") : undefined}
+      >
+        <NativeSelect id="repeat" {...register("repeat")}>
+          {REPEAT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </NativeSelect>
+      </Field>
+      {repeat !== "none" && (
+        <Field label="Até (opcional)" htmlFor="repeatUntil" error={errUntil}>
+          <Input id="repeatUntil" type="date" {...register("repeatUntil")} />
+        </Field>
+      )}
+    </div>
   );
 }

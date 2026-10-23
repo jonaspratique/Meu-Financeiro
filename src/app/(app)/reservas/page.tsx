@@ -140,7 +140,7 @@ export default async function ReservasPage() {
       {archived.length > 0 && (
         <Card className="mt-4">
           <CardHeader title="Reservas arquivadas" />
-          <CardBody className="grid gap-3">
+          <CardBody className="grid grid-cols-1 gap-3">
             {archived.map((g) => (
               <div key={g.id} className="flex items-center gap-3">
                 <IconBadge name={g.icon} color={g.color} className="opacity-60" />
