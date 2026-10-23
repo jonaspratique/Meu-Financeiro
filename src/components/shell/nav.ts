@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, BarChart3, CalendarRange, LayoutDashboard, PiggyBank, Settings, WalletCards, type LucideIcon,
+  ArrowLeftRight, BarChart3, CalendarRange, FileUp, LayoutDashboard, PiggyBank, Settings, WalletCards, type LucideIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -17,6 +17,8 @@ export const NAV: NavItem[] = [
   { href: "/planejamento", label: "Planejamento", short: "Planejamento", icon: CalendarRange },
   { href: "/relatorios", label: "Relatórios", short: "Relatórios", icon: BarChart3 },
 ];
+
+export const IMPORT: NavItem = { href: "/importar", label: "Importar CSV", short: "Importar", icon: FileUp };
 
 export const SETTINGS: NavItem = { href: "/configuracoes", label: "Configurações", short: "Ajustes", icon: Settings };
 

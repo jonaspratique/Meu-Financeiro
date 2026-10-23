@@ -9,6 +9,7 @@ import { CategoryBreakdown } from "@/components/common/category-breakdown";
 import { BarsChart, LinesChart } from "@/components/charts/charts";
 import { EntryList } from "@/components/entry/entry-list";
 import { NewEntryButton } from "@/components/entry/new-entry-button";
+import { QuickAddBar } from "@/components/entry/quick-add-bar";
 import {
   getAccounts, getBalances, getBalanceSeries, getCategories, getRecentTransactions, getSavings, getTotalCardDebt, getUpcoming,
 } from "@/lib/data/queries";
@@ -16,6 +17,8 @@ import { getEntriesInRange } from "@/lib/data/entries";
 import { getBudgetUsage, getDueStatements } from "@/lib/data/planning";
 import { DueStatementsList } from "@/components/planning/due-statements";
 import { BudgetAlerts } from "@/components/planning/budget-alerts";
+import { InsightsList } from "@/components/common/insights-list";
+import { getInsights } from "@/lib/data/insights";
 import { CARD_PAYMENT_PSEUDO_CATEGORY } from "@/lib/types";
 import {
   formatMonthLong, formatMonthShort, lastMonths, monthKeyOf, monthRange, parseMonthParam, shiftMonth, todayISO,
@@ -43,7 +46,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
     return end < today ? end : today;
   });
 
-  const [accounts, categories, entries, balances, savings, upcoming, recent, series, debt, debts, dueStatements, budgetUsage] =
+  const [accounts, categories, entries, balances, savings, upcoming, recent, series, debt, debts, dueStatements, budgetUsage, insights] =
     await Promise.all([
       getAccounts(),
       getCategories(),
@@ -57,6 +60,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
       Promise.all(monthEnds.map((d) => getTotalCardDebt(d))),
       getDueStatements(today, 30),
       getBudgetUsage(month),
+      getInsights(month, today),
     ]);
 
   if (accounts.length === 0) {
@@ -125,6 +129,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
         </div>
       )}
 
+      <QuickAddBar />
       <BudgetAlerts usage={budgetUsage} categories={categories} month={month} />
 
       <section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -229,6 +234,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
           </div>
         </Card>
       </div>
+
+      {hasHistory && (
+        <Card className="mt-4">
+          <CardHeader
+            title="Insights do mês"
+            action={<Link href={month === monthKeyOf(today) ? "/relatorios" : `/relatorios?m=${month}`} className="text-xs font-medium text-brand hover:underline">Relatórios</Link>}
+          />
+          <CardBody>
+            <InsightsList items={insights.slice(0, 3)} />
+          </CardBody>
+        </Card>
+      )}
 
       <Card className="mt-4">
         <CardHeader title="Patrimônio e reservas" description="Fechamento de cada mês. As reservas já estão contidas no patrimônio." />

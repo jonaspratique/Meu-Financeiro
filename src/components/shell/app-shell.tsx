@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/actions/auth";
 import { useEntryDialog } from "@/components/entry/entry-provider";
-import { isActive, NAV, SETTINGS } from "./nav";
+import { isActive, NAV, IMPORT, SETTINGS } from "./nav";
 import { ThemeSwitcher } from "./theme";
 
 function Logo() {
@@ -33,7 +33,7 @@ export function AppShell({ email, children }: { email: string; children: React.R
 
   const mobileMain = [NAV[0], NAV[1]];
   const mobileRight = [NAV[2]];
-  const more = [NAV[3], NAV[4], NAV[5], SETTINGS];
+  const more = [NAV[3], NAV[4], NAV[5], IMPORT, SETTINGS];
 
   return (
     <div className="min-h-dvh">

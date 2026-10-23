@@ -29,6 +29,8 @@ export interface EntryDraft {
   occurrenceDate?: string | null;
   repeat?: RepeatValue;
   repeatUntil?: string | null;
+  /** frase para interpretar ao abrir ("gastei 85 de gasolina") */
+  quickText?: string;
 }
 
 interface Ctx {
@@ -71,6 +73,16 @@ export function EntryProvider({
     setOpen(true);
   }, []);
   const openNew = useCallback((kind: EntryKind = "expense") => openDraft({ kind }), [openDraft]);
+
+  // Atalho do app instalado / link: /?novo=1 abre um novo lançamento
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("novo") === "1") {
+      url.searchParams.delete("novo");
+      window.history.replaceState(null, "", url.pathname + (url.search || ""));
+      openNew();
+    }
+  }, [openNew]);
 
   // Atalho de teclado: "N" abre um novo lançamento
   useEffect(() => {

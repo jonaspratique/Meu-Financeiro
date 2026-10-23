@@ -3,13 +3,15 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
-import { ArrowDown, ChevronDown, CreditCard as CardIcon, Loader2, Repeat } from "lucide-react";
+import { ArrowDown, ChevronDown, CreditCard as CardIcon, Loader2, Repeat, Sparkles } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { DynamicIcon } from "@/components/icon";
 import { saveEntry } from "@/lib/actions/entries";
+import { getQuickHints } from "@/lib/actions/quick";
+import { quickParse } from "@/lib/finance/quick-parse";
 import { entrySchema, PAYMENT_METHODS } from "@/lib/validation";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/finance/money";
 import { formatDateBR, isISODate, todayISO } from "@/lib/finance/dates";
@@ -125,6 +127,50 @@ export function EntryDialog({
   const installments = useWatch({ control, name: "installments" });
   const repeat = useWatch({ control, name: "repeat" });
   const scope = useWatch({ control, name: "scope" });
+
+  /* ----------------------- lançamento por frase ----------------------- */
+  const [quick, setQuick] = useState(draft.quickText ?? "");
+  const [understood, setUnderstood] = useState<string | null>(null);
+  const [hints, setHints] = useState<Awaited<ReturnType<typeof getQuickHints>> | null>(null);
+  useEffect(() => {
+    if (isEdit || !open || hints) return;
+    getQuickHints().then(setHints).catch(() => setHints([]));
+  }, [isEdit, open, hints]);
+
+  const applyQuick = (text: string, history = hints ?? []) => {
+    if (!text.trim()) return;
+    const r = quickParse(text, { today, accounts, cards, categories, history });
+    setValue("kind", r.kind);
+    if (r.amountCents) setValue("amount", centsToInput(r.amountCents));
+    setValue("description", r.description);
+    setValue("date", r.date);
+    setValue("status", r.status);
+    setValue("installments", String(r.installments));
+    if (r.paymentMethod) setValue("paymentMethod", r.paymentMethod);
+    if (r.kind === "transfer") {
+      if (r.fromAccountId) setValue("fromAccountId", r.fromAccountId);
+      if (r.toAccountId) setValue("toAccountId", r.toAccountId);
+    } else {
+      if (r.categoryId) setValue("categoryId", r.categoryId);
+      if (r.destination) setValue("accountId", r.destination);
+      else if (r.kind === "income" && accountId.startsWith("card:")) setValue("accountId", defaultAccount?.id ?? "");
+    }
+    const parts = [
+      r.kind === "income" ? "receita" : r.kind === "transfer" ? "transferência" : "despesa",
+      r.amountCents ? formatBRL(r.amountCents) : "valor não encontrado",
+      ...r.understood,
+      r.date === today ? "hoje" : formatDateBR(r.date),
+    ];
+    setUnderstood(parts.join(" · "));
+  };
+  // frase vinda de fora (ex.: barra rápida do dashboard)
+  const [appliedInitial, setAppliedInitial] = useState(false);
+  useEffect(() => {
+    if (!draft.quickText || appliedInitial || hints === null) return;
+    setAppliedInitial(true);
+    applyQuick(draft.quickText, hints);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.quickText, appliedInitial, hints]);
 
   const isCard = kind === "expense" && accountId.startsWith("card:");
   const card = isCard ? cards.find((c) => `card:${c.id}` === accountId) : undefined;
@@ -289,6 +335,41 @@ export function EntryDialog({
               </div>
             )}
 
+            {!isEdit && (
+              <div className="grid gap-1.5">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Sparkles className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-brand" aria-hidden />
+                    <Input
+                      aria-label="Lançamento por frase"
+                      placeholder="Escreva: gastei 85 de gasolina hoje"
+                      value={quick}
+                      onChange={(e) => setQuick(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          applyQuick(quick);
+                        }
+                      }}
+                      className="pl-9"
+                      enterKeyHint="go"
+                      autoFocus={!draft.quickText && !draft.amountCents}
+                    />
+                  </div>
+                  <Button type="button" variant="subtle" onClick={() => applyQuick(quick)} disabled={!quick.trim()}>
+                    Preencher
+                  </Button>
+                </div>
+                {understood ? (
+                  <p className="text-xs text-muted-foreground" role="status">
+                    Entendi: <span className="font-medium text-foreground">{understood}</span>. Confira abaixo e salve.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Ou preencha os campos abaixo.</p>
+                )}
+              </div>
+            )}
+
             <div className="grid gap-1.5">
               <label htmlFor="amount" className="sr-only">
                 Valor
@@ -304,7 +385,7 @@ export function EntryDialog({
                   id="amount"
                   inputMode="decimal"
                   autoComplete="off"
-                  autoFocus
+                  autoFocus={isEdit || !!draft.amountCents}
                   placeholder="0,00"
                   aria-invalid={!!err("amount")}
                   className={cn(

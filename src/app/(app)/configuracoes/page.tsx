@@ -1,4 +1,5 @@
-import { Download, FileSpreadsheet, LogOut, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Download, FileSpreadsheet, FileUp, LogOut, ShieldCheck } from "lucide-react";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/common/page-header";
@@ -30,7 +31,7 @@ export default async function ConfiguracoesPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="Exportar dados" description="Seus dados são seus. Exporte quando quiser." />
+          <CardHeader title="Importar e exportar" description="Seus dados são seus. Exporte quando quiser." />
           <CardBody className="grid gap-2 sm:grid-cols-2">
             <Button variant="outline" asChild>
               <a href="/api/export?formato=json" download>
@@ -41,6 +42,11 @@ export default async function ConfiguracoesPage() {
               <a href="/api/export?formato=csv" download>
                 <FileSpreadsheet /> Lançamentos (CSV)
               </a>
+            </Button>
+            <Button variant="outline" asChild className="sm:col-span-2">
+              <Link href="/importar">
+                <FileUp /> Importar extrato ou fatura (CSV)
+              </Link>
             </Button>
             <p className="text-xs text-muted-foreground sm:col-span-2">
               Recomendado: baixe o backup JSON uma vez por mês e guarde em local seguro. O procedimento de restauração está no

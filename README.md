@@ -43,7 +43,17 @@ Os 10 critérios foram validados por um teste automatizado de ponta a ponta (`te
 - **Vencimentos** em 7, 15 e 30 dias, incluindo faturas de cartão.
 - Dashboard e relatórios passam a considerar o cartão sem dupla contagem; o patrimônio desconta a dívida dos cartões.
 
-**Fase seguinte — Fase 3:** relatórios avançados, insights, lançamento por linguagem natural, importação CSV.
+## Fase 3 — Inteligência e relatórios (concluída)
+
+- **Relatórios** com período (3, 6, 12 ou 24 meses) e mês de referência: receitas × despesas, gastos por categoria, comparação mês a mês por categoria, fixas × variáveis, taxa de poupança, despesa média mensal, evolução do patrimônio, das reservas e da dívida de cartão.
+- **Projeção do saldo disponível** dia a dia até o fim do mês seguinte (contas a pagar/receber e faturas em aberto), com alerta do primeiro dia negativo.
+- **Insights por regras**, só com base em dados existentes (sem histórico, o app diz que ainda não há base). O mês em andamento é comparado com os mesmos dias do mês anterior.
+- **Lançamento por frase** ("gastei 85 de gasolina hoje", "notebook 3.600 em 6x no nubank"): interpretação local, sem IA externa; o formulário sempre abre preenchido para você conferir e salvar.
+- **Importação de CSV** (extrato, fatura de cartão ou o próprio CSV do app): separador `;` ou `,`, datas e valores BR ou internacionais, colunas de crédito/débito ou D/C, categoria sugerida pelo histórico e por palavras-chave, duplicados marcados, linhas de saldo e pagamentos de fatura ignorados. Até 1.000 linhas por vez.
+- **Exportação CSV por período** (`/api/export?formato=csv&de=AAAA-MM-DD&ate=AAAA-MM-DD`), com botão na página de relatórios.
+- **Celular**: barra de lançamento rápido no início, atalhos do app instalado (Novo lançamento, Movimentações, Planejamento), importação no menu "Mais".
+
+A integração com Telegram/WhatsApp ficou para depois.
 
 ---
 
@@ -130,7 +140,7 @@ O documento completo, com exemplos, está em [`docs/regras-financeiras.md`](docs
 ## Testes
 
 ```bash
-npm test            # unitários + banco (96 testes)
+npm test            # unitários + banco (127 testes)
 npm run typecheck
 npm run build
 ```
@@ -142,6 +152,8 @@ npm run build
 | `tests/e2e` (14 etapas) | Os 10 critérios de entrega no navegador, mais editar, duplicar, estornar, excluir, regime de caixa, exportação e uso no celular. |
 | `tests/unit/fase2` (13) | Faturas (fechamento/vencimento, virada de ano, dia 31), divisão de parcelas, situação da fatura, cartão em competência × caixa, orçamentos. |
 | `tests/db/fase2` (26) | **Atualizar Fase 1 → Fase 2 não altera saldos nem dados**; parcelas e faturas; estornos; pagamento parcial; recorrências (idempotência, exclusão não volta, encerrar, "esta e as próximas"); orçamentos; isolamento por usuário. |
+| `tests/unit/quick-parse`, `fase3`, `csv-import` (31) | Frases → valor, data, categoria, conta/cartão, parcelas; relatórios, projeção de saldo, insights sem inventar conclusões; leitura de CSV, formatos de data/valor de bancos, duplicados e sugestão de categoria. |
+| `tests/e2e/fase3.mjs` (11 etapas) | Frase → formulário, importação com duplicado e linha de saldo, reimportação, projeção negativa, relatórios, insights, CSV do período, celular sem rolagem lateral. |
 | `tests/e2e/fase2.mjs` (12 etapas) | Cartão, compra 6x, fatura, pagamento parcial, estorno, recorrência e edição da série, orçamento com aviso de 80%, celular sem rolagem lateral. |
 
 O teste de ponta a ponta precisa de um usuário **sem dados**, num projeto Supabase **de testes, nunca o de produção**:

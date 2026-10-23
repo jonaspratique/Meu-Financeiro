@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
   type TooltipContentProps,
 } from "recharts";
 import { formatBRL } from "@/lib/finance/money";
@@ -62,7 +62,7 @@ function ChartTooltip({ active, payload, label, series }: TooltipContentProps & 
 }
 
 /** Tabela acessível equivalente ao gráfico (leitores de tela). */
-function SrTable({ data, series, caption }: { data: Datum[]; series: SeriesDef[]; caption: string }) {
+function SrTable({ data, series, caption, xLabel = "Mês" }: { data: Datum[]; series: SeriesDef[]; caption: string; xLabel?: string }) {
   return (
     // a tabela fica dentro de um div sr-only: tabelas ignoram width:1px e causariam rolagem lateral
     <div className="sr-only">
@@ -70,7 +70,7 @@ function SrTable({ data, series, caption }: { data: Datum[]; series: SeriesDef[]
       <caption>{caption}</caption>
       <thead>
         <tr>
-          <th>Mês</th>
+          <th>{xLabel}</th>
           {series.map((s) => (
             <th key={s.key}>{s.label}</th>
           ))}
@@ -113,7 +113,9 @@ export function BarsChart({ data, series, caption, height = 240 }: { data: Datum
   );
 }
 
-export function LinesChart({ data, series, caption, height = 220 }: { data: Datum[]; series: SeriesDef[]; caption: string; height?: number }) {
+export function LinesChart({
+  data, series, caption, height = 220, dots = true, xLabel, zeroLine = false,
+}: { data: Datum[]; series: SeriesDef[]; caption: string; height?: number; dots?: boolean; xLabel?: string; zeroLine?: boolean }) {
   return (
     <figure>
       <Legend series={series} />
@@ -121,8 +123,9 @@ export function LinesChart({ data, series, caption, height = 220 }: { data: Datu
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid vertical={false} stroke="var(--border)" />
-            <XAxis dataKey="label" {...axisProps} />
+            <XAxis dataKey="label" {...axisProps} minTickGap={16} />
             <YAxis {...axisProps} width={56} tickFormatter={(v) => axisMoney(Number(v))} />
+            {zeroLine && <ReferenceLine y={0} stroke="var(--negative)" strokeDasharray="4 4" />}
             <Tooltip
               cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3" }}
               content={(p) => <ChartTooltip {...p} series={series} />}
@@ -136,14 +139,14 @@ export function LinesChart({ data, series, caption, height = 220 }: { data: Datu
                 stroke={s.color}
                 strokeWidth={2}
                 isAnimationActive={false}
-                dot={{ r: 3, strokeWidth: 2, stroke: "var(--card)", fill: s.color }}
+                dot={dots ? { r: 3, strokeWidth: 2, stroke: "var(--card)", fill: s.color } : false}
                 activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--card)" }}
               />
             ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <SrTable data={data} series={series} caption={caption} />
+      <SrTable data={data} series={series} caption={caption} xLabel={xLabel} />
     </figure>
   );
 }

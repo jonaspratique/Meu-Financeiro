@@ -122,3 +122,17 @@ Se o reservado de uma conta ficar maior que o saldo dela (você gastou dinheiro 
 - **Consumo** = despesa líquida da categoria no mês, por competência: lançamentos de conta (inclusive previstos) + parcelas do cartão − estornos.
 - Avisos em **80%** e **100%** no dashboard e no planejamento.
 - **Copiar para o mês seguinte** não sobrescreve orçamentos que já existem lá.
+
+## Relatórios, projeção e insights (Fase 3)
+
+- Relatórios usam a mesma soma do dashboard: parcelas do cartão na competência; pagamentos de fatura só no caixa.
+- **Despesa média mensal** considera apenas meses com algum lançamento (meses vazios não puxam a média para baixo).
+- **Fixas × variáveis** segue a marcação "fixa" de cada categoria; pagamentos de fatura não entram (as compras já entraram).
+- **Projeção do saldo disponível**: parte do disponível de hoje (contas do dia a dia, menos reservas) e aplica, dia a dia, receitas e despesas pendentes dessas contas e o valor em aberto das faturas no vencimento. Pendências vencidas entram hoje. Horizonte: fim do mês seguinte (até onde as recorrências já estão geradas).
+- **Insights** só aparecem com base: variação por categoria exige valores nos dois períodos e mudança de pelo menos 15% e R$ 50; média dos 3 meses exige 3 meses com dados e mês encerrado. O mês em andamento é comparado com os mesmos dias do mês anterior.
+
+## Importação de CSV
+
+- Conta: entradas viram receitas e saídas despesas, efetivadas na data (datas futuras ficam pendentes). Tudo ou nada: se uma linha falhar, nenhuma é gravada.
+- Cartão: saídas viram compras à vista; entradas, créditos na fatura. Linhas que parecem pagamento de fatura vêm desmarcadas (o pagamento é lançado pela conta).
+- Duplicado = mesma data, mesmo valor e mesma descrição normalizada (sem acentos, maiúsculas e números longos). Mesma data e valor com descrição diferente = "possível duplicado". Ambos vêm desmarcados.

@@ -29,6 +29,8 @@
   --chart-expense: #e0566a;
   --chart-networth: #6d5bd0;
   --chart-reserves: #0f8a7a;
+  --chart-fixed: #6d5bd0;
+  --chart-variable: #0f8a7a;
   --radius: 1rem;
 }
 
@@ -57,6 +59,8 @@
   --chart-expense: #de5c6e;
   --chart-networth: #8c7ee6;
   --chart-reserves: #1fa38f;
+  --chart-fixed: #8c7ee6;
+  --chart-variable: #1fa38f;
 }
 
 @theme inline {

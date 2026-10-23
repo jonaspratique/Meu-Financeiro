@@ -1,4 +1,6 @@
-import { Inbox } from "lucide-react";
+import Link from "next/link";
+import { FileUp, Inbox } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
 import { PageHeader } from "@/components/common/page-header";
 import { MonthNav } from "@/components/common/month-nav";
@@ -130,6 +132,9 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
         actions={
           <>
             <MonthNav month={month} base="/movimentacoes" params={params} current={currentMonth} />
+            <Button asChild variant="outline" className="hidden md:inline-flex">
+              <Link href="/importar"><FileUp /> Importar CSV</Link>
+            </Button>
             <NewEntryButton className="hidden md:inline-flex" variant="brand" />
           </>
         }
