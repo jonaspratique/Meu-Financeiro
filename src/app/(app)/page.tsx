@@ -19,6 +19,9 @@ import { DueStatementsList } from "@/components/planning/due-statements";
 import { BudgetAlerts } from "@/components/planning/budget-alerts";
 import { InsightsList } from "@/components/common/insights-list";
 import { getInsights } from "@/lib/data/insights";
+import { getTodayAlerts } from "@/lib/data/alerts";
+import { AlertsCard } from "@/components/common/alerts-card";
+import { countPushDevices } from "@/lib/actions/push";
 import { CARD_PAYMENT_PSEUDO_CATEGORY } from "@/lib/types";
 import {
   formatMonthLong, formatMonthShort, lastMonths, monthKeyOf, monthRange, parseMonthParam, shiftMonth, todayISO,
@@ -46,7 +49,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
     return end < today ? end : today;
   });
 
-  const [accounts, categories, entries, balances, savings, upcoming, recent, series, debt, debts, dueStatements, budgetUsage, insights] =
+  const [accounts, categories, entries, balances, savings, upcoming, recent, series, debt, debts, dueStatements, budgetUsage, insights, alerts, devices] =
     await Promise.all([
       getAccounts(),
       getCategories(),
@@ -61,6 +64,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
       getDueStatements(today, 30),
       getBudgetUsage(month),
       getInsights(month, today),
+      getTodayAlerts(today),
+      countPushDevices(),
     ]);
 
   if (accounts.length === 0) {
@@ -130,6 +135,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
       )}
 
       <QuickAddBar />
+      <AlertsCard alerts={alerts} devices={devices} />
       <BudgetAlerts usage={budgetUsage} categories={categories} month={month} />
 
       <section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-3">

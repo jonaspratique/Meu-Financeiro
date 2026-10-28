@@ -55,6 +55,20 @@ Os 10 critérios foram validados por um teste automatizado de ponta a ponta (`te
 
 A integração com Telegram/WhatsApp ficou para depois.
 
+### Notificações no celular
+
+Todo dia às **9h (Brasília)** o app manda notificações para os aparelhos ativados em **Configurações → Notificações no celular**:
+
+- fatura que **vence amanhã** (com o valor, a conta que paga e, se o saldo não cobrir, quanto falta e de onde dá para transferir);
+- **saldo que não cobre** o que sai de uma conta nos próximos 3 dias (faturas e contas a pagar, contando as receitas previstas);
+- **contas a pagar** que vencem amanhã;
+- **receita prevista** para hoje (e lembrete 2 dias depois, se não foi marcada como recebida);
+- **fatura vencida** sem pagamento registrado (dia seguinte e 3 dias depois).
+
+Os mesmos avisos aparecem no card **Avisos** do início. No iPhone, as notificações exigem o app adicionado à Tela de Início (iOS 16.4+).
+
+Como funciona: `pg_cron` chama às 12h UTC a Edge Function `supabase/functions/alerts` (Web Push com chaves VAPID geradas e guardadas no próprio banco, em `private.app_config`). As regras ficam em `src/lib/finance/alerts.ts`; a função usa uma cópia idêntica (um teste garante que as duas não divergem). Para publicar a função depois de mudar as regras: copie o arquivo para `supabase/functions/alerts/alerts.ts` e rode `supabase functions deploy alerts --no-verify-jwt`.
+
 ---
 
 ## Colocar no ar (≈ 15 minutos)

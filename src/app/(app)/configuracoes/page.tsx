@@ -8,12 +8,14 @@ import { getCategories } from "@/lib/data/queries";
 import { requireUser } from "@/lib/supabase/server";
 import { signOut } from "@/lib/actions/auth";
 import { CategoryManager } from "./category-manager";
+import { NotificationsCard } from "./notifications-card";
+import { countPushDevices } from "@/lib/actions/push";
 
 export const metadata = { title: "Configurações" };
 
 export default async function ConfiguracoesPage() {
   const { user } = await requireUser();
-  const categories = await getCategories();
+  const [categories, devices] = await Promise.all([getCategories(), countPushDevices()]);
   return (
     <>
       <PageHeader title="Configurações" description={user.email} />
@@ -23,6 +25,12 @@ export default async function ConfiguracoesPage() {
           <div className="mt-4">
             <CategoryManager categories={categories} />
           </div>
+        </Card>
+        <Card>
+          <CardHeader title="Notificações no celular" description="Avisos de vencimento e saldo, sem precisar abrir o app." />
+          <CardBody>
+            <NotificationsCard devices={devices} />
+          </CardBody>
         </Card>
         <Card>
           <CardHeader title="Aparência" />
