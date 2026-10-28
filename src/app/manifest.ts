@@ -10,7 +10,7 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#f8f9fb",
+    background_color: "#86deb5",
     theme_color: "#1f2230",
     shortcuts: [
       { name: "Novo lançamento", short_name: "Lançar", url: "/?novo=1", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
