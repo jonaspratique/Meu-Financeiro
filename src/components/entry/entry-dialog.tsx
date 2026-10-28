@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
+import { MicButton } from "./mic-button";
 import { ArrowDown, ChevronDown, CreditCard as CardIcon, Loader2, Repeat, Sparkles } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -342,7 +343,7 @@ export function EntryDialog({
                     <Sparkles className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-brand" aria-hidden />
                     <Input
                       aria-label="Lançamento por frase"
-                      placeholder="Escreva: gastei 85 de gasolina hoje"
+                      placeholder="Escreva ou fale: gastei 85 de gasolina"
                       value={quick}
                       onChange={(e) => setQuick(e.target.value)}
                       onKeyDown={(e) => {
@@ -356,6 +357,13 @@ export function EntryDialog({
                       autoFocus={!draft.quickText && !draft.amountCents}
                     />
                   </div>
+                  <MicButton
+                    onPartial={setQuick}
+                    onFinal={(t) => {
+                      setQuick(t);
+                      applyQuick(t);
+                    }}
+                  />
                   <Button type="button" variant="subtle" onClick={() => applyQuick(quick)} disabled={!quick.trim()}>
                     Preencher
                   </Button>

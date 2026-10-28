@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useEntryDialog } from "./entry-provider";
+import { MicButton } from "./mic-button";
 
 /** Barra de lançamento rápido: escreve a frase e abre o formulário já preenchido para confirmar. */
 export function QuickAddBar() {
   const { openDraft } = useEntryDialog();
   const [text, setText] = useState("");
-  const submit = () => {
-    if (!text.trim()) return;
-    openDraft({ kind: "expense", quickText: text });
+  const submit = (value = text) => {
+    if (!value.trim()) return;
+    openDraft({ kind: "expense", quickText: value });
     setText("");
   };
   return (
@@ -25,11 +26,13 @@ export function QuickAddBar() {
       <input
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Lançar rápido: gastei 85 de gasolina hoje"
+        placeholder="Lançar rápido: digite ou fale"
         aria-label="Lançamento rápido por frase"
         enterKeyHint="go"
         className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
+      {/* falou → abre o formulário preenchido para conferir */}
+      <MicButton size="sm" onPartial={setText} onFinal={(t) => submit(t)} />
       <button
         type="submit"
         disabled={!text.trim()}

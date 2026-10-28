@@ -93,3 +93,17 @@ describe("lançamento por frase", () => {
     expect(r.description).toBe("Coisa aleatória");
   });
 });
+
+describe("frase falada (microfone)", () => {
+  it("números por extenso, vírgula e centavos", async () => {
+    const { normalizeSpoken } = await import("@/lib/finance/quick-parse");
+    expect(normalizeSpoken("gastei oitenta e cinco reais de gasolina hoje")).toBe("gastei 85 reais de gasolina hoje");
+    expect(normalizeSpoken("paguei mil duzentos e cinquenta reais no aluguel")).toBe("paguei 1250 reais no aluguel");
+    expect(normalizeSpoken("comprei tênis em dez vezes")).toBe("comprei tenis em 10 vezes");
+    expect(normalizeSpoken("Gastei 32 reais e 50 centavos no almoço")).toBe("gastei 32,50 reais no almoco");
+    expect(normalizeSpoken("uber 18 vírgula 9")).toBe("uber 18,90");
+    expect(normalizeSpoken("recebi 4.500 de salário dia cinco")).toBe("recebi 4.500 de salario dia 5");
+    // frase digitada sem nada a converter fica como está (com acentos)
+    expect(normalizeSpoken("Comprei uma pizza 59,90 ontem")).toBe("Comprei uma pizza 59,90 ontem");
+  });
+});

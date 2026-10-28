@@ -111,7 +111,7 @@ function dayOfMonth(day: number, today: ISODate, future: boolean): ISODate | nul
 
 /* ---------------------------------- parser ---------------------------------- */
 export function quickParse(text: string, ctx: ParseContext): QuickParse {
-  const original = text.trim();
+  const original = normalizeSpoken(text);
   // pontuação solta vira espaço (mas mantém "85,90" e "1.200")
   let s = ` ${norm(original).replace(/(?<!\d)[.,;:!?]|[.,;:!?](?!\d)/g, " ")} `.replace(/\s+/g, " ");
   const CUT = " | "; // marca trechos já interpretados (separa a descrição em segmentos)
@@ -374,4 +374,55 @@ export function suggestCategory(
   if (hit && (!named || hit.w.length > norm(named.name).length)) return byName(hit.cat)!.id;
   if (named) return named.id;
   return byName(kind === "income" ? "Outras receitas" : "Outras despesas")?.id ?? kindCats[0]?.id ?? null;
+}
+
+/* ------------------------- frase falada (microfone) ------------------------- */
+const UNITS: Record<string, number> = {
+  zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9,
+  dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, dezesseis: 16, dezessete: 17,
+  dezoito: 18, dezenove: 19, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60, setenta: 70,
+  oitenta: 80, noventa: 90, cem: 100, cento: 100, duzentos: 200, duzentas: 200, trezentos: 300, trezentas: 300,
+  quatrocentos: 400, quatrocentas: 400, quinhentos: 500, quinhentas: 500, seiscentos: 600, seiscentas: 600,
+  setecentos: 700, setecentas: 700, oitocentos: 800, oitocentas: 800, novecentos: 900, novecentas: 900,
+};
+const NUM_WORD = `(?:${Object.keys(UNITS).join("|")}|mil)`;
+// sequência de números por extenso ("mil duzentos e cinquenta"), seguida de algo que indica valor/quantidade
+const SPOKEN_SEQ = new RegExp(
+  `(^|\\s|dia\\s)(${NUM_WORD}(?:\\s+(?:e\\s+)?${NUM_WORD})*)(?=\\s+(?:reais|real|mil|centavos?|vezes|parcelas|x)\\b|\\s*$|\\s+(?:de|no|na|em|pra|para|hoje|ontem)\\b)`,
+  "g",
+);
+
+function wordsToNumber(words: string): number | null {
+  let total = 0;
+  let current = 0;
+  for (const w of words.split(/\s+/).filter((x) => x && x !== "e")) {
+    if (w === "mil") {
+      total += (current || 1) * 1000;
+      current = 0;
+    } else if (w in UNITS) current += UNITS[w];
+    else return null;
+  }
+  return total + current;
+}
+
+/**
+ * Ajusta o texto que vem do reconhecimento de voz para o formato que a
+ * interpretação entende: números por extenso, "vírgula", "reais e 50 centavos".
+ * Não muda frases digitadas normalmente.
+ */
+export function normalizeSpoken(text: string): string {
+  let s = text.replace(/\s+/g, " ").trim();
+  const plain = norm(s);
+  // só converte palavras numéricas quando a frase não tem dígitos para o mesmo papel
+  s = plain.replace(SPOKEN_SEQ, (all: string, pre: string, seq: string, offset: number, whole: string) => {
+    // "1,8 mil" já é número: o "mil" fica para a interpretação do valor
+    if (/^mil\b/.test(seq) && /\d\s*$/.test(whole.slice(0, offset + pre.length))) return all;
+    const n = wordsToNumber(seq);
+    return n == null ? all : `${pre}${n}`;
+  });
+  s = s
+    .replace(/(\d+)\s+virgula\s+(\d{1,2})\b/g, (_m, a: string, b: string) => `${a},${b.padEnd(2, "0")}`)
+    .replace(/(\d+)\s+(?:reais|real)\s+e\s+(\d{1,2})(?:\s+centavos?)?\b/g, (_m, a: string, b: string) => `${a},${b.padStart(2, "0")} reais`)
+    .replace(/(?<![\d,])(\d{1,2})\s+centavos?\b/g, (_m, b: string) => `0,${b.padStart(2, "0")}`);
+  return s === plain ? text.trim() : s;
 }
