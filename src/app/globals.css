@@ -125,77 +125,118 @@
 }
 
 /* ============================================================================
-   Liquid Glass (opcional, combina com claro/escuro): superfícies translúcidas
-   com desfoque e brilho sobre um fundo colorido em movimento lento.
+   Liquid Glass (opcional, combina com claro/escuro): vidro quase transparente —
+   pouco desfoque, refração de cor, reflexo na borda e brilho especular —
+   sobre um fundo colorido que se mexe devagar.
    ========================================================================== */
 html.glass {
-  --card: oklch(1 0 0 / 0.5);
-  --muted: oklch(0.97 0.004 260 / 0.5);
-  --input: oklch(0.85 0.01 260 / 0.7);
-  --border: oklch(1 0 0 / 0.55);
-  --glass-edge: oklch(1 0 0 / 0.75);
-  --glass-shadow: 0 10px 40px -12px oklch(0.35 0.08 265 / 0.25);
-  --glass-blob-1: oklch(0.8 0.14 165 / 0.85);
-  --glass-blob-2: oklch(0.74 0.14 265 / 0.8);
-  --glass-blob-3: oklch(0.82 0.12 330 / 0.65);
-  --glass-blob-4: oklch(0.88 0.11 85 / 0.7);
+  --card: oklch(1 0 0 / 0.16);
+  --muted: oklch(1 0 0 / 0.22);
+  --input: oklch(1 0 0 / 0.55);
+  --border: oklch(1 0 0 / 0.45);
+  --glass-tint: oklch(1 0 0 / 0.16);
+  --glass-edge: oklch(1 0 0 / 0.85);
+  --glass-edge-soft: oklch(1 0 0 / 0.35);
+  --glass-shine: oklch(1 0 0 / 0.55);
+  --glass-shadow: 0 18px 50px -18px oklch(0.3 0.08 265 / 0.35);
+  --glass-blob-1: oklch(0.78 0.17 160);
+  --glass-blob-2: oklch(0.68 0.19 265);
+  --glass-blob-3: oklch(0.75 0.18 340);
+  --glass-blob-4: oklch(0.87 0.15 85);
+  --glass-blob-5: oklch(0.82 0.09 230);
+  --glass-base: oklch(0.97 0.01 260);
 }
 html.glass.dark {
-  --card: oklch(0.24 0.012 265 / 0.5);
-  --muted: oklch(0.3 0.012 265 / 0.45);
-  --input: oklch(0.45 0.015 265 / 0.55);
-  --border: oklch(1 0 0 / 0.12);
-  --glass-edge: oklch(1 0 0 / 0.18);
-  --glass-shadow: 0 12px 44px -12px oklch(0 0 0 / 0.6);
-  --glass-blob-1: oklch(0.45 0.12 165 / 0.65);
-  --glass-blob-2: oklch(0.4 0.15 265 / 0.7);
-  --glass-blob-3: oklch(0.42 0.14 330 / 0.5);
-  --glass-blob-4: oklch(0.45 0.1 60 / 0.4);
+  --card: oklch(0.2 0.02 265 / 0.22);
+  --muted: oklch(1 0 0 / 0.08);
+  --input: oklch(1 0 0 / 0.12);
+  --border: oklch(1 0 0 / 0.16);
+  --glass-tint: oklch(1 0 0 / 0.05);
+  --glass-edge: oklch(1 0 0 / 0.35);
+  --glass-edge-soft: oklch(1 0 0 / 0.1);
+  --glass-shine: oklch(1 0 0 / 0.18);
+  --glass-shadow: 0 20px 50px -18px oklch(0 0 0 / 0.75);
+  --glass-blob-1: oklch(0.55 0.16 160);
+  --glass-blob-2: oklch(0.45 0.2 270);
+  --glass-blob-3: oklch(0.5 0.2 340);
+  --glass-blob-4: oklch(0.6 0.14 70);
+  --glass-blob-5: oklch(0.5 0.14 220);
+  --glass-base: oklch(0.14 0.02 270);
 }
 
 html.glass body {
   background: transparent;
 }
+/* fundo: manchas de cor bem definidas, para o vidro ter o que refratar */
 html.glass body::before {
   content: "";
   position: fixed;
-  inset: -20%;
+  inset: -15%;
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(40% 35% at 15% 20%, var(--glass-blob-1), transparent 70%),
-    radial-gradient(45% 40% at 85% 15%, var(--glass-blob-2), transparent 70%),
-    radial-gradient(40% 40% at 70% 85%, var(--glass-blob-3), transparent 70%),
-    radial-gradient(35% 30% at 20% 85%, var(--glass-blob-4), transparent 70%),
-    var(--background);
-  animation: glass-drift 40s ease-in-out infinite alternate;
+    radial-gradient(26% 24% at 12% 18%, var(--glass-blob-1), transparent 72%),
+    radial-gradient(30% 28% at 88% 12%, var(--glass-blob-2), transparent 72%),
+    radial-gradient(24% 26% at 72% 62%, var(--glass-blob-3), transparent 72%),
+    radial-gradient(28% 22% at 22% 82%, var(--glass-blob-4), transparent 72%),
+    radial-gradient(22% 20% at 45% 40%, var(--glass-blob-5), transparent 72%),
+    var(--glass-base);
+  animation: glass-drift 36s ease-in-out infinite alternate;
 }
 @keyframes glass-drift {
-  from { transform: translate3d(0, 0, 0) rotate(0deg); }
-  to { transform: translate3d(3%, -2%, 0) rotate(6deg); }
+  from { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  to { transform: translate3d(4%, -3%, 0) rotate(8deg) scale(1.06); }
 }
 
-/* superfícies: cartões, barras, menus, diálogos, campos */
+/* vidro: pouco desfoque + muita saturação = enxerga o fundo, colorido */
 html.glass .bg-card,
 html.glass [class*="bg-card/"],
-html.glass [class*="bg-background/"] {
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  backdrop-filter: blur(22px) saturate(180%);
+html.glass [class*="bg-background/"],
+html.glass .bg-muted {
+  -webkit-backdrop-filter: blur(9px) saturate(135%) brightness(1.06);
+  backdrop-filter: blur(9px) saturate(135%) brightness(1.06);
 }
+html.glass.dark .bg-card,
+html.glass.dark [class*="bg-card/"],
+html.glass.dark [class*="bg-background/"] {
+  -webkit-backdrop-filter: blur(12px) saturate(170%) brightness(0.9);
+  backdrop-filter: blur(12px) saturate(170%) brightness(0.9);
+}
+
+/* placas de vidro: reflexo diagonal + borda iluminada em cima e à esquerda */
 html.glass .rounded-2xl.bg-card,
 html.glass [role="dialog"],
 html.glass [role="menu"] {
-  border-color: var(--glass-edge);
+  background-image:
+    linear-gradient(135deg, var(--glass-shine) 0%, transparent 28%, transparent 70%, var(--glass-tint) 100%);
+  border-color: var(--glass-edge-soft);
   box-shadow:
-    inset 0 1px 0 0 var(--glass-edge),
-    inset 0 -1px 0 0 oklch(1 0 0 / 0.06),
+    inset 1px 1px 0 0 var(--glass-edge),
+    inset -1px -1px 0 0 var(--glass-edge-soft),
+    inset 0 0 24px 0 var(--glass-tint),
     var(--glass-shadow);
 }
+
+/* cartão de destaque (saldo) vira vidro escuro/fumê em vez de bloco sólido */
+html.glass .bg-primary.rounded-2xl,
+html.glass section[aria-label="Indicadores"] > .bg-primary {
+  background-color: oklch(0.2 0.02 265 / 0.55);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
+  backdrop-filter: blur(10px) saturate(180%);
+  box-shadow: inset 1px 1px 0 0 oklch(1 0 0 / 0.35), var(--glass-shadow);
+}
+html.glass.dark .bg-primary.rounded-2xl,
+html.glass.dark section[aria-label="Indicadores"] > .bg-primary {
+  background-color: oklch(1 0 0 / 0.75);
+}
+
 html.glass aside,
 html.glass nav.fixed[aria-label="Principal"] {
-  background-color: color-mix(in oklch, var(--card) 85%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  backdrop-filter: blur(28px) saturate(180%);
+  background-color: var(--card);
+  background-image: linear-gradient(180deg, var(--glass-shine), transparent 35%);
+  -webkit-backdrop-filter: blur(14px) saturate(190%);
+  backdrop-filter: blur(14px) saturate(190%);
+  border-color: var(--glass-edge-soft);
 }
 
 /* acessibilidade e desempenho */
@@ -203,6 +244,6 @@ html.glass nav.fixed[aria-label="Principal"] {
   html.glass body::before { animation: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  html.glass { --card: var(--background); }
+  html.glass { --card: var(--background); --muted: oklch(0.95 0.003 260); }
   html.glass .bg-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }

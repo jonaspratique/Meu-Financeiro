@@ -24,6 +24,11 @@ export function useTheme() {
       t = (localStorage.getItem(KEY) as Theme) || "system";
     } catch {}
     setThemeState(t);
+    // reaplica depois da hidratação (se o React recriar o <html>, as classes voltam)
+    apply(t);
+    try {
+      document.documentElement.classList.toggle("glass", localStorage.getItem(GLASS_KEY) === "1");
+    } catch {}
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => apply((localStorage.getItem(KEY) as Theme) || "system");
     mq.addEventListener("change", onChange);
