@@ -139,11 +139,11 @@ html.glass {
   --glass-edge-soft: oklch(1 0 0 / 0.35);
   --glass-shine: oklch(1 0 0 / 0.55);
   --glass-shadow: 0 18px 50px -18px oklch(0.3 0.08 265 / 0.35);
-  --glass-blob-1: oklch(0.78 0.17 160);
-  --glass-blob-2: oklch(0.68 0.19 265);
-  --glass-blob-3: oklch(0.75 0.18 340);
-  --glass-blob-4: oklch(0.87 0.15 85);
-  --glass-blob-5: oklch(0.82 0.09 230);
+  --glass-blob-1: oklch(0.86 0.07 160 / 0.8);
+  --glass-blob-2: oklch(0.8 0.08 265 / 0.8);
+  --glass-blob-3: oklch(0.85 0.07 340 / 0.7);
+  --glass-blob-4: oklch(0.92 0.06 85 / 0.75);
+  --glass-blob-5: oklch(0.88 0.05 230 / 0.7);
   --glass-base: oklch(0.97 0.01 260);
 }
 html.glass.dark {
@@ -156,11 +156,11 @@ html.glass.dark {
   --glass-edge-soft: oklch(1 0 0 / 0.1);
   --glass-shine: oklch(1 0 0 / 0.18);
   --glass-shadow: 0 20px 50px -18px oklch(0 0 0 / 0.75);
-  --glass-blob-1: oklch(0.55 0.16 160);
-  --glass-blob-2: oklch(0.45 0.2 270);
-  --glass-blob-3: oklch(0.5 0.2 340);
-  --glass-blob-4: oklch(0.6 0.14 70);
-  --glass-blob-5: oklch(0.5 0.14 220);
+  --glass-blob-1: oklch(0.42 0.07 160 / 0.8);
+  --glass-blob-2: oklch(0.38 0.09 270 / 0.8);
+  --glass-blob-3: oklch(0.4 0.08 340 / 0.7);
+  --glass-blob-4: oklch(0.45 0.06 70 / 0.6);
+  --glass-blob-5: oklch(0.4 0.06 220 / 0.7);
   --glass-base: oklch(0.14 0.02 270);
 }
 
