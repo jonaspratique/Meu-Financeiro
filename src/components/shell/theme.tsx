@@ -1,14 +1,15 @@
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Droplets, Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type Theme = "system" | "light" | "dark";
 const KEY = "mf-theme";
+const GLASS_KEY = "mf-glass";
 
 /** Script executado antes da pintura para evitar "flash" de tema errado. */
-export const themeScript = `(function(){try{var t=localStorage.getItem('${KEY}')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d)}catch(e){}})()`;
+export const themeScript = `(function(){try{var t=localStorage.getItem('${KEY}')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.classList.toggle('glass',localStorage.getItem('${GLASS_KEY}')==='1')}catch(e){}})()`;
 
 function apply(theme: Theme) {
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -65,5 +66,43 @@ export function ThemeSwitcher({ className }: { className?: string }) {
         </button>
       ))}
     </div>
+  );
+}
+
+/** Liquid Glass: liga/desliga o efeito de vidro (combina com claro, escuro e sistema). */
+export function GlassToggle({ className, compact }: { className?: string; compact?: boolean }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    setOn(document.documentElement.classList.contains("glass"));
+  }, []);
+  const toggle = () => {
+    const next = !on;
+    setOn(next);
+    document.documentElement.classList.toggle("glass", next);
+    try {
+      localStorage.setItem(GLASS_KEY, next ? "1" : "0");
+    } catch {}
+  };
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={toggle}
+      title="Efeito Liquid Glass"
+      className={cn(
+        "flex h-9 w-full items-center justify-between gap-2 rounded-xl border px-3 text-xs font-medium transition",
+        on ? "border-brand/40 bg-brand/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+        className,
+      )}
+    >
+      <span className="inline-flex items-center gap-1.5">
+        <Droplets className="size-3.5" />
+        {compact ? "Liquid Glass" : "Efeito Liquid Glass"}
+      </span>
+      <span className={cn("relative inline-flex h-4 w-7 rounded-full transition", on ? "bg-brand" : "bg-input")} aria-hidden>
+        <span className={cn("absolute top-0.5 size-3 rounded-full bg-white shadow transition-all", on ? "left-3.5" : "left-0.5")} />
+      </span>
+    </button>
   );
 }

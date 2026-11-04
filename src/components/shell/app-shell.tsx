@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/actions/auth";
 import { useEntryDialog } from "@/components/entry/entry-provider";
 import { isActive, NAV, IMPORT, SETTINGS } from "./nav";
-import { ThemeSwitcher } from "./theme";
+import { GlassToggle, ThemeSwitcher } from "./theme";
 
 function Logo() {
   return (
@@ -65,6 +65,7 @@ export function AppShell({ email, children }: { email: string; children: React.R
         </nav>
         <div className="mt-auto grid gap-3">
           <ThemeSwitcher className="w-full" />
+          <GlassToggle compact />
           <div className="flex items-center gap-2 rounded-xl px-2 py-1">
             <Link
               href={SETTINGS.href}
@@ -157,7 +158,8 @@ export function AppShell({ email, children }: { email: string; children: React.R
               </Link>
             ))}
           </div>
-          <div className="mt-4 flex items-center justify-between gap-3 border-t pt-4">
+          <GlassToggle className="mt-4" />
+          <div className="mt-3 flex items-center justify-between gap-3 border-t pt-4">
             <ThemeSwitcher />
             <form action={signOut}>
               <Button variant="ghost" size="sm">
