@@ -5,7 +5,8 @@ import { statementBalance } from "@/lib/finance/cards";
 import { summarize } from "@/lib/finance/summary";
 import type { Budget, CreditCard, StatementTotals } from "@/lib/types";
 import { getEntriesInRange } from "./entries";
-import { getBudgets, getCards, getStatementTotals } from "./queries";
+import { getBudgets, getCards, getStatementTotals, getTransactionsInRange } from "./queries";
+import { monthPayables } from "@/lib/finance/payables";
 
 export interface BudgetUsage {
   budget: Budget;
@@ -39,4 +40,27 @@ export async function getDueStatements(today: ISODate, days: number): Promise<Du
     .filter((t) => t.closingDate <= limit && t.dueDate <= limit && statementBalance(t) > 0 && byId.has(t.cardId))
     .map((t) => ({ totals: t, card: byId.get(t.cardId)!, remaining: statementBalance(t), overdue: t.dueDate < today }))
     .sort((a, b) => (a.totals.dueDate < b.totals.dueDate ? -1 : 1));
+}
+
+/** Tudo que vence no mês: contas/boletos das contas + faturas de cartão com vencimento no mês. */
+export async function getMonthPayables(month: MonthKey, today: ISODate) {
+  const range = monthRange(month);
+  const [txs, totals, cards] = await Promise.all([getTransactionsInRange(range.from, range.to), getStatementTotals(), getCards()]);
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  return monthPayables(
+    range,
+    today,
+    txs.filter((t) => t.type === "expense").map((t) => ({ amountCents: t.amountCents, date: t.date, status: t.status })),
+    totals
+      .filter((t) => byId.has(t.cardId))
+      .map((t) => ({
+        cardId: t.cardId,
+        cardName: byId.get(t.cardId)!.name,
+        dueDate: t.dueDate,
+        closingDate: t.closingDate,
+        chargesCents: t.chargesCents,
+        creditsCents: t.creditsCents,
+        paymentsCents: t.paymentsCents,
+      })),
+  );
 }

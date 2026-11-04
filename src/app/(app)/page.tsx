@@ -14,13 +14,14 @@ import {
   getAccounts, getBalances, getBalanceSeries, getCategories, getRecentTransactions, getSavings, getTotalCardDebt, getUpcoming,
 } from "@/lib/data/queries";
 import { getEntriesInRange } from "@/lib/data/entries";
-import { getBudgetUsage, getDueStatements } from "@/lib/data/planning";
+import { getBudgetUsage, getDueStatements, getMonthPayables } from "@/lib/data/planning";
 import { DueStatementsList } from "@/components/planning/due-statements";
 import { BudgetAlerts } from "@/components/planning/budget-alerts";
 import { InsightsList } from "@/components/common/insights-list";
 import { getInsights } from "@/lib/data/insights";
 import { getTodayAlerts } from "@/lib/data/alerts";
 import { AlertsCard } from "@/components/common/alerts-card";
+import { MonthPayablesCard } from "@/components/common/month-payables";
 import { countPushDevices } from "@/lib/actions/push";
 import { CARD_PAYMENT_PSEUDO_CATEGORY } from "@/lib/types";
 import {
@@ -49,7 +50,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
     return end < today ? end : today;
   });
 
-  const [accounts, categories, entries, balances, savings, upcoming, recent, series, debt, debts, dueStatements, budgetUsage, insights, alerts, devices] =
+  const [accounts, categories, entries, balances, savings, upcoming, recent, series, debt, debts, dueStatements, budgetUsage, insights, alerts, devices, payables] =
     await Promise.all([
       getAccounts(),
       getCategories(),
@@ -66,6 +67,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
       getInsights(month, today),
       getTodayAlerts(today),
       countPushDevices(),
+      getMonthPayables(month, today),
     ]);
 
   if (accounts.length === 0) {
@@ -171,6 +173,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
           className="col-span-2 lg:col-span-1"
         />
       </section>
+      <MonthPayablesCard data={payables} month={month} />
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5 [&>*]:min-w-0">
         <Card className="lg:col-span-3">
