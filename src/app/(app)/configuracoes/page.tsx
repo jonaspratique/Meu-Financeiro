@@ -3,7 +3,7 @@ import { Download, FileSpreadsheet, FileUp, LogOut, ShieldCheck } from "lucide-r
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/common/page-header";
-import { GlassToggle, ThemeSwitcher } from "@/components/shell/theme";
+import { GlassToggle, ThemeSwitcher, WallpaperPicker } from "@/components/shell/theme";
 import { getCategories } from "@/lib/data/queries";
 import { requireUser } from "@/lib/supabase/server";
 import { signOut } from "@/lib/actions/auth";
@@ -37,6 +37,7 @@ export default async function ConfiguracoesPage() {
           <CardBody className="grid gap-3">
             <ThemeSwitcher />
             <GlassToggle className="max-w-xs" />
+            <WallpaperPicker />
           </CardBody>
         </Card>
         <Card>
