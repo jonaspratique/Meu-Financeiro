@@ -19,10 +19,12 @@ export const metadata = { title: "Movimentações" };
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+/** filtro com várias opções: ?tipo=despesa,receita */
+const many = (v: string | string[] | undefined) => one(v).split(",").map((x) => x.trim()).filter(Boolean);
 
 const STATUS: Record<string, string> = { efetivado: "paid", pendente: "pending", cancelado: "cancelled" };
 const TYPES = ["despesa", "receita", "estorno", "transferencia", "cartao"] as const;
-type TypeFilter = (typeof TYPES)[number] | "";
+type TypeFilter = (typeof TYPES)[number];
 
 function normalize(s: string) {
   return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -48,8 +50,13 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
   const currentMonth = monthKeyOf(today);
   const month = parseMonthParam(sp.m, today);
   const range = monthRange(month);
-  const tipo = (TYPES as readonly string[]).includes(one(sp.tipo)) ? (one(sp.tipo) as TypeFilter) : "";
-  const f = { status: STATUS[one(sp.status)] ?? "", conta: one(sp.conta), cat: one(sp.cat), q: normalize(one(sp.q).trim()) };
+  const tipos = many(sp.tipo).filter((t): t is TypeFilter => (TYPES as readonly string[]).includes(t));
+  const f = {
+    status: many(sp.status).map((s) => STATUS[s]).filter(Boolean),
+    conta: many(sp.conta),
+    cat: many(sp.cat),
+    q: normalize(one(sp.q).trim()),
+  };
 
   const [accounts, categories, cards, txns, transfers, purchases, payments, installments] = await Promise.all([
     getAccounts(),
@@ -63,21 +70,22 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
   ]);
 
   const matches = (it: ListItem) => {
-    if (tipo && !typesOf(it).includes(tipo)) return false;
+    if (tipos.length && !typesOf(it).some((t) => tipos.includes(t))) return false;
     // cartão e pagamentos são sempre efetivados
     const status = it.kind === "card" || it.kind === "payment" ? "paid" : it.t.status;
-    if (f.status && status !== f.status) return false;
-    if (f.conta) {
+    if (f.status.length && !f.status.includes(status)) return false;
+    if (f.conta.length) {
+      const has = (id: string | null | undefined) => !!id && f.conta.includes(id);
       const ok =
-        it.kind === "transfer" ? it.t.fromAccountId === f.conta || it.t.toAccountId === f.conta
-        : it.kind === "card" ? it.t.cardId === f.conta
-        : it.kind === "payment" ? it.t.accountId === f.conta || it.t.cardId === f.conta
-        : it.t.accountId === f.conta;
+        it.kind === "transfer" ? has(it.t.fromAccountId) || has(it.t.toAccountId)
+        : it.kind === "card" ? has(it.t.cardId)
+        : it.kind === "payment" ? has(it.t.accountId) || has(it.t.cardId)
+        : has(it.t.accountId);
       if (!ok) return false;
     }
-    if (f.cat) {
+    if (f.cat.length) {
       const cat = it.kind === "transaction" || it.kind === "card" ? it.t.categoryId : null;
-      if (cat !== f.cat) return false;
+      if (!cat || !f.cat.includes(cat)) return false;
     }
     if (f.q && !normalize(`${it.t.description} ${it.t.notes ?? ""}`).includes(f.q)) return false;
     return true;
@@ -117,10 +125,10 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
   ]);
   const params = {
     m: month === currentMonth ? undefined : month,
-    tipo: tipo || undefined,
-    status: one(sp.status) || undefined,
-    conta: f.conta || undefined,
-    cat: f.cat || undefined,
+    tipo: tipos.join(",") || undefined,
+    status: many(sp.status).join(",") || undefined,
+    conta: f.conta.join(",") || undefined,
+    cat: f.cat.join(",") || undefined,
     q: one(sp.q) || undefined,
   };
 
