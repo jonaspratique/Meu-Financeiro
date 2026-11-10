@@ -10,7 +10,7 @@ import { CategoryBreakdown } from "@/components/common/category-breakdown";
 import { InsightsList } from "@/components/common/insights-list";
 import { getEntriesInRange } from "@/lib/data/entries";
 import { getInsights, getProjection } from "@/lib/data/insights";
-import { getAccounts, getBalanceSeries, getCategories, getTotalCardDebt } from "@/lib/data/queries";
+import { getAccounts, getBalanceSeries, getCardDebtSeries, getCategories } from "@/lib/data/queries";
 import {
   formatDateBR, formatDayMonth, formatMonthLong, formatMonthShort, lastMonths, monthKeyOf, monthRange, parseMonthParam, shiftMonth, todayISO,
 } from "@/lib/finance/dates";
@@ -53,7 +53,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: S
     getCategories(),
     getAccounts(),
     getBalanceSeries(monthEnds),
-    Promise.all(monthEnds.map((d) => getTotalCardDebt(d))),
+    getCardDebtSeries(monthEnds),
     getInsights(month, today),
     getProjection(today),
   ]);

@@ -130,9 +130,22 @@ export async function getAdjustments() {
 }
 
 /** Saldos em várias datas (ex.: fim de cada mês) para séries de patrimônio. */
-export async function getBalanceSeries(dates: ISODate[]) {
-  return Promise.all(dates.map(async (d) => ({ date: d, rows: await getBalances(d) })));
-}
+/** Saldos em várias datas numa chamada só ao banco. */
+export const getBalanceSeries = cache(async (dates: ISODate[]) => {
+  if (!dates.length) return [] as { date: ISODate; rows: BalanceRow[] }[];
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.rpc("account_balances_at", { p_dates: dates });
+  if (error) throw new Error(error.message);
+  const byDate = new Map<string, BalanceRow[]>(dates.map((d) => [d, []]));
+  for (const r of (data ?? []) as Row[]) {
+    byDate.get(String(r.as_of))?.push({
+      accountId: String(r.account_id),
+      balanceCents: Number(r.balance_cents),
+      reservedCents: Number(r.reserved_cents),
+    });
+  }
+  return dates.map((d) => ({ date: d, rows: byDate.get(d) ?? [] }));
+});
 
 /** Total já estornado (não cancelado) por despesa. */
 export async function getRefundTotals(expenseIds: string[]) {
@@ -178,6 +191,20 @@ export const getCardBalances = cache(async (asOf: ISODate): Promise<Map<string, 
   const { data, error } = await supabase.rpc("card_balances", { p_as_of: asOf });
   if (error) throw new Error(error.message);
   return new Map(((data ?? []) as Row[]).map((r) => [String(r.card_id), Number(r.used_cents)]));
+});
+
+/** Dívida total nos cartões em várias datas numa chamada só (mesma ordem de `dates`). */
+export const getCardDebtSeries = cache(async (dates: ISODate[]): Promise<number[]> => {
+  if (!dates.length) return [];
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.rpc("card_balances_at", { p_dates: dates });
+  if (error) throw new Error(error.message);
+  const totals = new Map<string, number>(dates.map((d) => [d, 0]));
+  for (const r of (data ?? []) as Row[]) {
+    const k = String(r.as_of);
+    totals.set(k, (totals.get(k) ?? 0) + Number(r.used_cents));
+  }
+  return dates.map((d) => totals.get(d) ?? 0);
 });
 
 export async function getTotalCardDebt(asOf: ISODate) {

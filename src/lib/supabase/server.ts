@@ -25,12 +25,17 @@ export async function createClient() {
 }
 
 /**
- * Garante usuário autenticado (validado no servidor do Supabase) e retorna
- * o client já autenticado. Toda leitura/escrita passa por aqui.
+ * Garante usuário autenticado e retorna o client já autenticado.
+ *
+ * Usa getClaims(): o token (ES256) é verificado localmente com a chave pública
+ * do projeto (em cache), sem ir ao servidor de autenticação a cada página.
+ * O banco continua validando o mesmo token em toda consulta (RLS).
  */
 export const requireUser = cache(async () => {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) redirect("/login");
-  return { supabase, user: data.user };
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (error || !claims?.sub) redirect("/login");
+  const user = { id: String(claims.sub), email: typeof claims.email === "string" ? claims.email : undefined };
+  return { supabase, user };
 });

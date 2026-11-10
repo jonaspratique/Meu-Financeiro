@@ -11,7 +11,7 @@ import { EntryList } from "@/components/entry/entry-list";
 import { NewEntryButton } from "@/components/entry/new-entry-button";
 import { QuickAddBar } from "@/components/entry/quick-add-bar";
 import {
-  getAccounts, getBalances, getBalanceSeries, getCategories, getRecentTransactions, getSavings, getTotalCardDebt, getUpcoming,
+  getAccounts, getBalances, getBalanceSeries, getCategories, getRecentTransactions, getSavings, getTotalCardDebt, getUpcoming, getCardDebtSeries,
 } from "@/lib/data/queries";
 import { getEntriesInRange } from "@/lib/data/entries";
 import { getBudgetUsage, getDueStatements, getMonthPayables } from "@/lib/data/planning";
@@ -61,7 +61,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
       getRecentTransactions(6, today),
       getBalanceSeries(monthEnds),
       getTotalCardDebt(asOf),
-      Promise.all(monthEnds.map((d) => getTotalCardDebt(d))),
+      getCardDebtSeries(monthEnds),
       getDueStatements(today, 30),
       getBudgetUsage(month),
       getInsights(month, today),
