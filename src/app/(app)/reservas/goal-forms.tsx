@@ -30,13 +30,34 @@ function useRun() {
   return { pending, run };
 }
 
-export function GoalDialog({ goal, open, onOpenChange }: { goal?: SavingsGoal; open: boolean; onOpenChange: (o: boolean) => void }) {
+export interface AccountPick {
+  id: string;
+  name: string;
+  free: number; // saldo livre (não reservado)
+}
+
+export function GoalDialog({
+  goal,
+  accounts,
+  open,
+  onOpenChange,
+}: {
+  goal?: SavingsGoal;
+  accounts: AccountPick[];
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const [name, setName] = useState(goal?.name ?? "");
   const [kind, setKind] = useState<GoalKind>(goal?.kind ?? "emergency");
   const [target, setTarget] = useState(goal ? centsToInput(goal.targetCents) : "");
   const [targetDate, setTargetDate] = useState(goal?.targetDate ?? "");
   const [color, setColor] = useState(goal?.color ?? PALETTE[2]);
+  const [accountId, setAccountId] = useState(goal?.accountId ?? accounts[0]?.id ?? "");
+  const [saved, setSaved] = useState("");
+  const [savedMode, setSavedMode] = useState<"add" | "in_balance">("add");
   const { pending, run } = useRun();
+  const account = accounts.find((a) => a.id === accountId);
+  const hasSaved = !goal && saved.trim() !== "" && saved.trim() !== "0";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title={goal ? "Editar reserva" : "Nova reserva"}>
@@ -45,7 +66,7 @@ export function GoalDialog({ goal, open, onOpenChange }: { goal?: SavingsGoal; o
           onSubmit={(e) => {
             e.preventDefault();
             run(
-              () => saveGoal({ id: goal?.id, name: name || GOAL_KIND_LABEL[kind], kind, target, targetDate, color }),
+              () => saveGoal({ id: goal?.id, name: name || GOAL_KIND_LABEL[kind], kind, target, targetDate, color, accountId, saved, savedMode }),
               () => onOpenChange(false),
             );
           }}
@@ -70,6 +91,45 @@ export function GoalDialog({ goal, open, onOpenChange }: { goal?: SavingsGoal; o
               <Input id="g-date" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
             </Field>
           </div>
+          <Field
+            label="Conta onde fica guardada"
+            htmlFor="g-acc"
+            hint="Ex.: a conta da caixinha ou do investimento. Os aportes já vêm com ela escolhida."
+          >
+            <NativeSelect id="g-acc" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <option value="">Sem conta definida</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          {!goal && (
+            <div className="grid gap-3 rounded-xl border p-3">
+              <Field label="Já tenho guardado (R$)" htmlFor="g-saved" hint="Opcional — entra como primeiro aporte da reserva.">
+                <Input id="g-saved" inputMode="decimal" value={saved} onChange={(e) => setSaved(e.target.value)} placeholder="0,00" />
+              </Field>
+              {hasSaved && (
+                <>
+                  <Segmented
+                    value={savedMode}
+                    onChange={setSavedMode}
+                    className="w-full"
+                    options={[
+                      { value: "add", label: "Somar ao saldo da conta" },
+                      { value: "in_balance", label: "Já está no saldo" },
+                    ]}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {savedMode === "add"
+                      ? `O dinheiro está guardado à parte (caixinha, CDB…): o valor é somado ao saldo${account ? ` da conta ${account.name}` : ""} e fica reservado. Entra no seu patrimônio.`
+                      : `O valor já aparece no saldo${account ? ` da conta ${account.name}` : ""}: só fica marcado como reservado${account ? ` (livre hoje: ${formatBRL(account.free)})` : ""}.`}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2" aria-label="Cor">
             {PALETTE.map((c) => (
               <button
@@ -92,14 +152,14 @@ export function GoalDialog({ goal, open, onOpenChange }: { goal?: SavingsGoal; o
   );
 }
 
-export function NewGoalButton() {
+export function NewGoalButton({ accounts }: { accounts: AccountPick[] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button variant="brand" onClick={() => setOpen(true)}>
         <Plus /> Nova reserva
       </Button>
-      <GoalDialog key={String(open)} open={open} onOpenChange={setOpen} />
+      <GoalDialog key={String(open)} accounts={accounts} open={open} onOpenChange={setOpen} />
     </>
   );
 }
@@ -126,7 +186,8 @@ function MoveDialog({
 }) {
   const [kind, setKind] = useState(initialKind);
   const options = kind === "withdrawal" ? accounts.filter((a) => a.inGoal > 0) : accounts;
-  const [accountId, setAccountId] = useState(options[0]?.id ?? "");
+  const preferred = (opts: AccountOption[]) => (opts.find((a) => a.id === goal.accountId) ?? opts[0])?.id ?? "";
+  const [accountId, setAccountId] = useState(preferred(options));
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayISO());
   const { pending, run } = useRun();
@@ -149,7 +210,7 @@ function MoveDialog({
             onChange={(v) => {
               setKind(v);
               const opts = v === "withdrawal" ? accounts.filter((a) => a.inGoal > 0) : accounts;
-              setAccountId(opts[0]?.id ?? "");
+              setAccountId(preferred(opts));
             }}
             className="w-full"
             options={[
@@ -233,7 +294,7 @@ export function GoalActions({ goal, accounts }: { goal: SavingsGoal; accounts: A
       {move && (
         <MoveDialog goal={goal} accounts={accounts} initialKind={move} open onOpenChange={(o) => !o && setMove(null)} />
       )}
-      <GoalDialog key={`e${edit}`} goal={goal} open={edit} onOpenChange={setEdit} />
+      <GoalDialog key={`e${edit}`} goal={goal} accounts={accounts} open={edit} onOpenChange={setEdit} />
       <ConfirmDialog
         open={del}
         onOpenChange={setDel}

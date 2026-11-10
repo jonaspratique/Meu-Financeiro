@@ -24,6 +24,11 @@ export default async function ReservasPage() {
   const totalRemaining = active.reduce((a, g) => a + progress.get(g.id)!.remaining, 0);
   const suggested = active.reduce((a, g) => a + (progress.get(g.id)!.suggestedMonthly ?? 0), 0);
 
+  const accountPicks = accounts
+    .filter((a) => !a.archived && byId.has(a.id))
+    .map((a) => ({ id: a.id, name: a.name, free: byId.get(a.id)!.balanceCents - byId.get(a.id)!.reservedCents }));
+  const accName = (id: string | null) => accounts.find((a) => a.id === id)?.name;
+
   const accountOptions = (goalId: string): AccountOption[] =>
     accounts
       .filter((a) => !a.archived && byId.has(a.id))
@@ -41,7 +46,7 @@ export default async function ReservasPage() {
 
   return (
     <>
-      <PageHeader title="Minhas Reservas" description="Dinheiro separado para objetivos, sem contar em dobro." actions={<NewGoalButton />} />
+      <PageHeader title="Minhas Reservas" description="Dinheiro separado para objetivos, sem contar em dobro." actions={<NewGoalButton accounts={accountPicks} />} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="p-4">
@@ -69,7 +74,7 @@ export default async function ReservasPage() {
             icon={<PiggyBank />}
             title="Nenhuma reserva ainda"
             description="Crie uma reserva de emergência, para viagem ou para qualquer objetivo. Os aportes etiquetam parte do saldo das suas contas."
-            action={<NewGoalButton />}
+            action={<NewGoalButton accounts={accountPicks} />}
           />
         </Card>
       ) : (
@@ -87,6 +92,7 @@ export default async function ReservasPage() {
                       Meta <Money cents={g.targetCents} />
                       {g.targetDate && ` · até ${formatDateBR(g.targetDate)}`}
                     </p>
+                    {accName(g.accountId) && <p className="text-xs text-muted-foreground">Guardada em {accName(g.accountId)}</p>}
                   </div>
                   {p.done ? <Badge tone="positive">Concluída</Badge> : p.overdue ? <Badge tone="negative">Prazo vencido</Badge> : null}
                 </div>
@@ -154,9 +160,10 @@ export default async function ReservasPage() {
       )}
 
       <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-        Como funciona: o aporte não move dinheiro nem cria despesa — ele marca parte do saldo de uma conta como reservada.
-        Se quiser guardar em outra conta (ex.: poupança), faça antes uma transferência e depois aporte na conta de destino.
-        O patrimônio soma apenas os saldos das contas; as reservas já estão dentro deles.
+        Como funciona: cada reserva fica numa conta. O aporte não move dinheiro nem cria despesa — ele marca parte do saldo
+        dessa conta como reservada. Ao criar a reserva com um valor que já estava guardado à parte (caixinha, CDB), escolha
+        “Somar ao saldo da conta” para que ele entre no saldo da conta e no seu patrimônio. Para guardar mais a partir de outra
+        conta, faça antes uma transferência e depois aporte na conta da reserva.
       </p>
     </>
   );

@@ -82,6 +82,8 @@ export interface SavingsGoal {
   color: string;
   icon: string;
   archived: boolean;
+  /** conta onde o dinheiro da reserva fica guardado (sugerida nos aportes) */
+  accountId: string | null;
 }
 
 export interface SavingsMovement {
@@ -271,6 +273,7 @@ export const mapGoal = (r: Row): SavingsGoal => ({
   color: String(r.color),
   icon: String(r.icon),
   archived: r.archived_at != null,
+  accountId: r.account_id ? String(r.account_id) : null,
 });
 
 export const mapMovement = (r: Row): SavingsMovement => ({

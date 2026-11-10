@@ -18,24 +18,38 @@ export async function saveGoal(input: {
   target: string;
   targetDate?: string;
   color: string;
+  accountId?: string;
+  /** só na criação: quanto já está guardado */
+  saved?: string;
+  /** "add": soma ao saldo da conta (dinheiro guardado à parte); "in_balance": já está no saldo */
+  savedMode?: "add" | "in_balance";
 }): Promise<ActionResult> {
   const parsed = goalSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
   const v = parsed.data;
+  if (v.saved > 0 && !v.accountId) return { ok: false, error: "Escolha a conta onde o dinheiro está guardado." };
   const { supabase } = await requireUser();
-  const row = {
-    name: v.name,
-    kind: v.kind,
-    target_cents: v.target,
-    target_date: v.targetDate ?? null,
-    color: v.color,
-    icon: GOAL_KIND_ICON[v.kind],
-  };
-  const { error } = v.id
-    ? await supabase.from("savings_goals").update(row).eq("id", v.id)
-    : await supabase.from("savings_goals").insert(row);
+  const { error } = await supabase.rpc("save_goal", {
+    p_id: v.id ?? null,
+    p_name: v.name,
+    p_kind: v.kind,
+    p_target_cents: v.target,
+    p_target_date: v.targetDate ?? null,
+    p_color: v.color,
+    p_icon: GOAL_KIND_ICON[v.kind],
+    p_account_id: v.accountId ?? null,
+    p_saved_cents: v.id ? 0 : v.saved,
+    p_saved_mode: v.savedMode,
+  });
   if (error) return { ok: false, error: dbError(error) };
-  return done(v.id ? "Reserva atualizada" : "Reserva criada");
+  if (v.id) return done("Reserva atualizada");
+  return done(
+    v.saved > 0
+      ? v.savedMode === "add"
+        ? "Reserva criada e valor somado ao saldo da conta"
+        : "Reserva criada com o valor já guardado"
+      : "Reserva criada",
+  );
 }
 
 export async function deleteGoal(id: string): Promise<ActionResult> {

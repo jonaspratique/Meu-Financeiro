@@ -4,7 +4,8 @@ import { Badge, Card, CardBody, CardHeader, EmptyState, Progress } from "@/compo
 import { PageHeader } from "@/components/common/page-header";
 import { Money } from "@/components/common/money";
 import { IconBadge } from "@/components/icon";
-import { getAccounts, getAdjustments, getBalances, getCardBalances, getCards, getStatementTotals } from "@/lib/data/queries";
+import { getAccounts, getAdjustments, getBalances, getCardBalances, getCards, getSavings, getStatementTotals } from "@/lib/data/queries";
+import { signed } from "@/lib/finance/savings";
 import { currentStatementMonth, statementBalance, statementDates } from "@/lib/finance/cards";
 import { CardActions, CardIcon, NewCardButton } from "../cartoes/card-forms";
 import { formatDateBR, todayISO } from "@/lib/finance/dates";
@@ -17,14 +18,23 @@ export const metadata = { title: "Contas e cartões" };
 
 export default async function ContasPage() {
   const today = todayISO();
-  const [accounts, balances, adjustments, cards, cardBalances, statementTotals] = await Promise.all([
+  const [accounts, balances, adjustments, cards, cardBalances, statementTotals, savings] = await Promise.all([
     getAccounts(),
     getBalances(today),
     getAdjustments(),
     getCards(),
     getCardBalances(today),
     getStatementTotals(),
+    getSavings(),
   ]);
+  /** reservas guardadas em cada conta (nome e valor) */
+  const goalsIn = (accountId: string) =>
+    savings.goals
+      .map((g) => ({
+        goal: g,
+        cents: savings.movements.filter((m) => m.goalId === g.id && m.accountId === accountId && m.date <= today).reduce((s, m) => s + signed(m), 0),
+      }))
+      .filter((x) => x.cents > 0);
   const activeCards = cards.filter((c) => !c.archived);
   const archivedCards = cards.filter((c) => c.archived);
   let cardDebt = 0;
@@ -92,6 +102,23 @@ export default async function ContasPage() {
                   {!a.isOperational && <Badge>Fora do disponível</Badge>}
                   {!b && <Badge tone="warning">Inicia em {formatDateBR(a.initialBalanceDate)}</Badge>}
                 </div>
+                {reserved > 0 && (
+                  <div className="mt-3 grid gap-1 border-t pt-3 text-xs">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Livre</span>
+                      <Money cents={balance - reserved} />
+                    </div>
+                    {goalsIn(a.id).map(({ goal, cents }) => (
+                      <Link key={goal.id} href="/reservas" className="flex items-center justify-between gap-2 hover:underline">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="size-2 shrink-0 rounded-full" style={{ background: goal.color }} aria-hidden />
+                          <span className="truncate">{goal.name}</span>
+                        </span>
+                        <Money cents={cents} />
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </Card>
             );
           })}

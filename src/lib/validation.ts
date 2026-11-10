@@ -163,6 +163,21 @@ export const goalSchema = z.object({
   target: positiveMoney,
   targetDate: isoDate.optional().or(z.literal("").transform(() => undefined)),
   color,
+  accountId: id.optional().or(z.literal("").transform(() => undefined)),
+  /** valor já guardado ao criar (opcional) */
+  saved: z
+    .string()
+    .optional()
+    .transform((v, ctx) => {
+      if (!v || !v.trim()) return 0;
+      const c = parseBRL(v);
+      if (c == null || c < 0) {
+        ctx.addIssue({ code: "custom", message: "Valor guardado inválido" });
+        return z.NEVER;
+      }
+      return c;
+    }),
+  savedMode: z.enum(["add", "in_balance"]).default("add"),
 });
 
 export const savingsMoveSchema = z.object({
