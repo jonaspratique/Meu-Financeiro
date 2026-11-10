@@ -9,8 +9,9 @@ import { Field, Input, NativeSelect } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/dropdown";
 import { ConfirmDialog } from "@/components/entry/entry-list";
+import { PayStatementDialog } from "@/components/entry/pay-statement-dialog";
 import { DynamicIcon, PALETTE } from "@/components/icon";
-import { deleteCard, payStatement, saveCard, saveCardAdjustment, setCardArchived } from "@/lib/actions/cards";
+import { deleteCard, saveCard, saveCardAdjustment, setCardArchived } from "@/lib/actions/cards";
 import { centsToInput, formatBRL } from "@/lib/finance/money";
 import { formatDateBR, todayISO } from "@/lib/finance/dates";
 import type { Account, Category, CreditCard } from "@/lib/types";
@@ -157,13 +158,7 @@ export function CardActions({ card, accounts }: { card: CreditCard; accounts: Ac
   );
 }
 
-export function PayStatementButton({
-  statementId,
-  remaining,
-  accounts,
-  defaultAccountId,
-  dueDate,
-}: {
+export function PayStatementButton(props: {
   statementId: string;
   remaining: number;
   accounts: Account[];
@@ -171,53 +166,12 @@ export function PayStatementButton({
   dueDate: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState(centsToInput(Math.max(remaining, 0)));
-  const [accountId, setAccountId] = useState(defaultAccountId ?? accounts.find((a) => a.isDefault)?.id ?? accounts[0]?.id ?? "");
-  const [date, setDate] = useState(todayISO());
-  const { pending, run } = useRun();
   return (
     <>
       <Button variant="brand" onClick={() => setOpen(true)}>
         <Wallet /> Pagar fatura
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          title="Pagar fatura"
-          description={`Saldo da fatura: ${formatBRL(remaining)} · vence em ${formatDateBR(dueDate)}. Pagamento parcial é permitido; o restante continua em aberto.`}
-        >
-          <form
-            className="grid gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              run(() => payStatement({ statementId, accountId, amount, date }), () => setOpen(false));
-            }}
-          >
-            <Field label="Valor pago (R$)" htmlFor="pay-amount">
-              <Input id="pay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Pago com a conta" htmlFor="pay-account">
-                <NativeSelect id="pay-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                  {accounts.filter((a) => !a.archived).map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <Field label="Data do pagamento" htmlFor="pay-date">
-                <Input id="pay-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-              </Field>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              O pagamento sai do saldo da conta, mas não é uma despesa nova: as compras já foram contadas como despesa nas parcelas.
-            </p>
-            <Button type="submit" size="lg" disabled={pending}>
-              {pending && <Loader2 className="animate-spin" />} Registrar pagamento
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {open && <PayStatementDialog {...props} open onOpenChange={setOpen} />}
     </>
   );
 }

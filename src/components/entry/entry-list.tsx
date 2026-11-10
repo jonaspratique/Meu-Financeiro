@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   ArrowLeftRight, Ban, Check, Copy, CreditCard, Landmark, Loader2, MoreHorizontal, Pencil, Repeat, RotateCcw, Square, Trash2, Undo2,
@@ -21,12 +22,28 @@ import {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useEntryDialog } from "./entry-provider";
+import { PayStatementDialog } from "./pay-statement-dialog";
 
 export type ListItem =
   | { kind: "transaction"; t: Transaction }
   | { kind: "transfer"; t: Transfer }
   | { kind: "card"; t: CardPurchase; installment?: { number: number; totalNumber: number; amountCents: number } }
-  | { kind: "payment"; t: StatementPayment };
+  | { kind: "payment"; t: StatementPayment }
+  | { kind: "statement"; t: OpenStatement };
+
+/** Fatura com saldo em aberto, mostrada no dia do vencimento (não soma nos totais: as compras já contam). */
+export interface OpenStatement {
+  id: string; // statementId
+  cardId: string;
+  date: string; // vencimento
+  dueDate: string;
+  closingDate: string;
+  remainingCents: number;
+  paidCents: number;
+  description: string;
+  notes: null;
+  createdAt: string;
+}
 
 type Result = { ok: boolean; error?: string; message?: string };
 function useRun() {
@@ -68,6 +85,8 @@ export function EntryList({
         );
       case "payment":
         return <PaymentRow key={it.t.id} p={it.t} showDate={date} />;
+      case "statement":
+        return <StatementRow key={`st-${it.t.id}`} s={it.t} showDate={date} />;
       default:
         return <EntryRow key={it.t.id} item={it} showDate={date} refunded={refundedByExpense[it.t.id] ?? 0} />;
     }
@@ -465,6 +484,56 @@ function PaymentRow({ p, showDate }: { p: StatementPayment; showDate: boolean })
         confirmLabel="Excluir"
         onConfirm={() => run(() => deleteStatementPayment(p.id))}
       />
+    </RowShell>
+  );
+}
+
+function StatementRow({ s, showDate }: { s: OpenStatement; showDate: boolean }) {
+  const { cards, accounts } = useEntryDialog();
+  const [pay, setPay] = useState(false);
+  const card = cards.find((c) => c.id === s.cardId);
+  const account = accounts.find((a) => a.id === card?.paymentAccountId);
+  const overdue = s.dueDate < todayISO();
+  return (
+    <RowShell>
+      <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+        <CreditCard className="size-[18px]" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">Fatura {card?.name ?? "do cartão"}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {showDate && <span className="tabular">{formatDayMonth(s.dueDate)} · </span>}
+          Fechou em {formatDayMonth(s.closingDate)}
+          {account && ` · paga pela conta ${account.name}`}
+          {s.paidCents > 0 && ` · já pago ${formatBRL(s.paidCents)}`}
+        </p>
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        <Money cents={-s.remainingCents} tone="negative" className="text-sm font-semibold" />
+        <Badge tone={overdue ? "negative" : "warning"}>{overdue ? "Vencida" : "A pagar"}</Badge>
+      </div>
+      <ActionsButton label={`fatura ${card?.name ?? ""}`} busy={false}>
+        <MenuItem onSelect={() => setPay(true)}>
+          <Landmark /> Registrar pagamento
+        </MenuItem>
+        <MenuItem asChild>
+          <Link href={`/cartoes/${s.cardId}`}>
+            <CreditCard /> Ver fatura
+          </Link>
+        </MenuItem>
+      </ActionsButton>
+      {pay && (
+        <PayStatementDialog
+          open
+          onOpenChange={setPay}
+          statementId={s.id}
+          remaining={s.remainingCents}
+          accounts={accounts}
+          defaultAccountId={card?.paymentAccountId ?? null}
+          dueDate={s.dueDate}
+          cardName={card?.name}
+        />
+      )}
     </RowShell>
   );
 }

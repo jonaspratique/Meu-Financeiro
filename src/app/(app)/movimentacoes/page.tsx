@@ -6,11 +6,11 @@ import { PageHeader } from "@/components/common/page-header";
 import { MonthNav } from "@/components/common/month-nav";
 import { FilterBar } from "@/components/common/filter-bar";
 import { Money } from "@/components/common/money";
-import { EntryList, type ListItem } from "@/components/entry/entry-list";
+import { EntryList, type ListItem, type OpenStatement } from "@/components/entry/entry-list";
 import { NewEntryButton } from "@/components/entry/new-entry-button";
 import {
   getAccounts, getCardPurchasesInRange, getCardRefundTotals, getCards, getCategories, getInstallmentsInRange,
-  getRefundTotals, getStatementPaymentsInRange, getTransactionsInRange, getTransfersInRange,
+  getRefundTotals, getStatementPaymentsInRange, getStatementTotals, getTransactionsInRange, getTransfersInRange,
 } from "@/lib/data/queries";
 import { inRange, monthKeyOf, monthRange, parseMonthParam, todayISO } from "@/lib/finance/dates";
 import { installmentEntry, summarize, type Entry } from "@/lib/finance/summary";
@@ -37,6 +37,9 @@ function typesOf(it: ListItem): TypeFilter[] {
       return ["transferencia"];
     case "payment":
       return ["cartao"];
+    case "statement":
+      // fatura a pagar: aparece também em "Despesas", mas não soma no total (as compras já contam)
+      return ["cartao", "despesa"];
     case "card":
       return it.t.kind === "purchase" || it.t.kind === "fee" ? ["despesa", "cartao"] : ["estorno", "cartao"];
     default:
@@ -58,7 +61,7 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
     q: normalize(one(sp.q).trim()),
   };
 
-  const [accounts, categories, cards, txns, transfers, purchases, payments, installments] = await Promise.all([
+  const [accounts, categories, cards, txns, transfers, purchases, payments, installments, statementTotals] = await Promise.all([
     getAccounts(),
     getCategories(),
     getCards(),
@@ -67,12 +70,27 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
     getCardPurchasesInRange(range.from, range.to),
     getStatementPaymentsInRange(range.from, range.to),
     getInstallmentsInRange(range.from, range.to),
+    getStatementTotals(),
   ]);
+
+  // Faturas que vencem no mês e ainda têm saldo a pagar (fechadas ou não)
+  const cardById = new Map(cards.map((c) => [c.id, c]));
+  const openStatements: OpenStatement[] = statementTotals
+    .filter((st) => inRange(st.dueDate, range) && cardById.has(st.cardId))
+    .map((st) => {
+      const net = st.chargesCents - st.creditsCents;
+      return {
+        id: st.statementId, cardId: st.cardId, date: st.dueDate, dueDate: st.dueDate, closingDate: st.closingDate,
+        remainingCents: net - st.paymentsCents, paidCents: st.paymentsCents,
+        description: `Fatura ${cardById.get(st.cardId)!.name}`, notes: null, createdAt: "",
+      };
+    })
+    .filter((st) => st.remainingCents > 0);
 
   const matches = (it: ListItem) => {
     if (tipos.length && !typesOf(it).some((t) => tipos.includes(t))) return false;
     // cartão e pagamentos são sempre efetivados
-    const status = it.kind === "card" || it.kind === "payment" ? "paid" : it.t.status;
+    const status = it.kind === "card" || it.kind === "payment" ? "paid" : it.kind === "statement" ? "pending" : it.t.status;
     if (f.status.length && !f.status.includes(status)) return false;
     if (f.conta.length) {
       const has = (id: string | null | undefined) => !!id && f.conta.includes(id);
@@ -80,6 +98,7 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
         it.kind === "transfer" ? has(it.t.fromAccountId) || has(it.t.toAccountId)
         : it.kind === "card" ? has(it.t.cardId)
         : it.kind === "payment" ? has(it.t.accountId) || has(it.t.cardId)
+        : it.kind === "statement" ? has(it.t.cardId) || has(cardById.get(it.t.cardId)?.paymentAccountId)
         : has(it.t.accountId);
       if (!ok) return false;
     }
@@ -97,6 +116,7 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
     ...transfers.map((t) => ({ kind: "transfer" as const, t })),
     ...purchases.map((t) => ({ kind: "card" as const, t })),
     ...payments.map((t) => ({ kind: "payment" as const, t })),
+    ...openStatements.map((t) => ({ kind: "statement" as const, t })),
   ]
     .filter(matches)
     .sort((a, b) => (a.t.date === b.t.date ? (a.t.createdAt < b.t.createdAt ? 1 : -1) : a.t.date < b.t.date ? 1 : -1));
@@ -173,7 +193,7 @@ export default async function MovimentacoesPage({ searchParams }: { searchParams
       </Card>
       <p className="mt-3 text-center text-xs text-muted-foreground">
         {items.length} {items.length === 1 ? "item" : "itens"} · totais por competência: compras no cartão entram pela parcela do mês;
-        transferências e pagamentos de fatura não são despesa
+        transferências, faturas e pagamentos de fatura não somam como despesa
       </p>
     </>
   );
